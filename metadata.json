@@ -1,0 +1,6 @@
+{
+  "name": "Temple Run 3D",
+  "description": "High-octane 3D endless runner inspired by Temple Run and SpiderRun with procedural ruins, 90-degree turns, sliding, jumping, and an animated chasing monster.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
