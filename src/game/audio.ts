@@ -173,6 +173,102 @@ class SoundSystem {
     noise.stop(t + 0.35);
   }
 
+  // Heavy robotic foot-plant landing thud + servo absorb
+  public playLand() {
+    if (!this.enabled) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+
+    // Low impact thump
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(145, t);
+    osc.frequency.exponentialRampToValueAtTime(42, t + 0.14);
+    gain.gain.setValueAtTime(0.32, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.17);
+
+    // Subtle crisp floor scuff
+    const bufferSize = Math.floor(this.ctx.sampleRate * 0.08);
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+    }
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(520, t);
+    filter.Q.value = 1.4;
+    const noiseGain = this.ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.16, t);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+    noise.connect(filter);
+    filter.connect(noiseGain);
+    noiseGain.connect(this.ctx.destination);
+    noise.start(t);
+    noise.stop(t + 0.09);
+  }
+
+  // Heavy Stone Wall Explosion (sub-bass boom + shattering rock rumble + debris clatter)
+  public playStoneExplosion(heavy = true) {
+    if (!this.enabled) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    const duration = heavy ? 0.65 : 0.24;
+
+    // 1. Sub-bass shockwave boom
+    const subOsc = this.ctx.createOscillator();
+    const subGain = this.ctx.createGain();
+    subOsc.type = 'triangle';
+    subOsc.frequency.setValueAtTime(heavy ? 115 : 160, t);
+    subOsc.frequency.exponentialRampToValueAtTime(22, t + (heavy ? 0.45 : 0.18));
+    subGain.gain.setValueAtTime(heavy ? 0.52 : 0.24, t);
+    subGain.gain.exponentialRampToValueAtTime(0.001, t + (heavy ? 0.48 : 0.2));
+    subOsc.connect(subGain);
+    subGain.connect(this.ctx.destination);
+    subOsc.start(t);
+    subOsc.stop(t + 0.5);
+
+    // 2. Rock shatter roar (lowpass filtered noise)
+    const bufferSize = Math.floor(this.ctx.sampleRate * duration);
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      const env = Math.pow(1 - i / bufferSize, 1.3);
+      // Add crackling rock transients
+      const crackle = Math.random() < 0.08 ? 1.8 : 1.0;
+      data[i] = (Math.random() * 2 - 1) * env * crackle;
+    }
+
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+
+    const lowpass = this.ctx.createBiquadFilter();
+    lowpass.type = 'lowpass';
+    lowpass.frequency.setValueAtTime(heavy ? 1800 : 1200, t);
+    lowpass.frequency.exponentialRampToValueAtTime(180, t + duration);
+
+    const roarGain = this.ctx.createGain();
+    roarGain.gain.setValueAtTime(heavy ? 0.48 : 0.22, t);
+    roarGain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+
+    noise.connect(lowpass);
+    lowpass.connect(roarGain);
+    roarGain.connect(this.ctx.destination);
+    noise.start(t);
+    noise.stop(t + duration + 0.02);
+  }
+
   // Falling down abyss scream/whoosh
   public playFall() {
     if (!this.enabled) return;
@@ -195,31 +291,6 @@ class SoundSystem {
 
     osc.start(t);
     osc.stop(t + 0.82);
-  }
-
-  // Spider monster hiss / skitter
-  public playSpiderRoar() {
-    if (!this.enabled) return;
-    this.initCtx();
-    if (!this.ctx) return;
-
-    const t = this.ctx.currentTime;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(90, t);
-    osc.frequency.linearRampToValueAtTime(140, t + 0.15);
-    osc.frequency.exponentialRampToValueAtTime(40, t + 0.4);
-
-    gain.gain.setValueAtTime(0.2, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
-
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-
-    osc.start(t);
-    osc.stop(t + 0.42);
   }
 
   // Powerup activation

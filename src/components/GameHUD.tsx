@@ -10,6 +10,8 @@ import {
   Zap,
   Camera,
   Users,
+  ArrowLeft,
+  ArrowRight,
 } from 'lucide-react';
 import { sound } from '../game/audio';
 import { AdventurerProfile, getDiceBearAvatarUrl } from '../game/adventurers';
@@ -58,7 +60,7 @@ interface GameHUDProps {
 }
 
 export const GameHUD: React.FC<GameHUDProps> = ({
-  coins,
+  score,
   distance,
   isPaused,
   powerupMessage,
@@ -72,13 +74,18 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   streak,
   currentLaneX,
   decisionFeedback,
-  tradeHistory,
+  onChooseYes,
+  onChooseNo,
   onOpenAdventurerSelect,
   onToggleCamera,
   onPauseToggle,
   onRestart,
 }) => {
   const [isMuted, setIsMuted] = useState(!sound.enabled);
+  const isLeaningLeft = currentLaneX < -0.35;
+  const isLeaningRight = currentLaneX > 0.35;
+  const leftAction = currentQuery.leftLabel.replace(/\s*\(YES\)/i, '');
+  const rightAction = currentQuery.rightLabel.replace(/\s*\(NO\)/i, '');
 
   const handleToggleMute = () => {
     const enabled = sound.toggleMute();
@@ -89,10 +96,10 @@ export const GameHUD: React.FC<GameHUDProps> = ({
     <div className="absolute inset-0 pointer-events-none select-none flex flex-col justify-between p-2 sm:p-4">
       {/* Top Docked Bar: Distance + Sleek Top Query Table + Bullion & Pause */}
       <div className="w-full max-w-6xl mx-auto flex flex-col gap-1 pointer-events-auto">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-start justify-between gap-2">
           {/* Left: Run Distance Indicator */}
-          <div className="flex items-center gap-2 bg-slate-950/80 backdrop-blur-md border border-amber-500/40 rounded-xl px-3 py-1.5 shadow-xl shrink-0">
-            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-amber-400">
+          <div className="flex items-center gap-2 bg-slate-950/88 border border-slate-700/80 rounded-xl px-3 py-1.5 shadow-xl shrink-0">
+            <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-amber-400">
               RUN
             </span>
             <span className="text-base sm:text-lg font-black text-white font-mono tabular-nums">
@@ -109,37 +116,36 @@ export const GameHUD: React.FC<GameHUDProps> = ({
               streak={streak}
               currentLaneX={currentLaneX}
               decisionFeedback={decisionFeedback}
-              tradeHistory={tradeHistory}
             />
           </div>
 
           {/* Right: Bullion & Pause Controls */}
           <div className="flex items-center gap-1.5 shrink-0">
             {hasShield && (
-              <div className="bg-blue-600/80 border border-blue-400 text-white p-1.5 rounded-xl shadow">
+              <div className="bg-blue-600/85 border border-blue-400 text-white p-1.5 rounded-xl shadow">
                 <Shield className="w-3.5 h-3.5 text-blue-200" />
               </div>
             )}
             {hasMagnet && (
-              <div className="bg-purple-600/80 border border-purple-400 text-white p-1.5 rounded-xl shadow">
+              <div className="bg-purple-600/85 border border-purple-400 text-white p-1.5 rounded-xl shadow">
                 <Magnet className="w-3.5 h-3.5 text-purple-200" />
               </div>
             )}
 
-            {/* Bullion ($) Display */}
-            <div className="bg-slate-950/80 backdrop-blur-md border border-amber-500/40 rounded-xl px-3 py-1.5 flex items-center gap-1.5 shadow-xl">
+            {/* Dollar Score Display */}
+            <div className="bg-slate-950/88 border border-slate-700/80 rounded-xl px-3 py-1.5 flex items-center gap-1.5 shadow-xl">
               <div className="w-4 h-4 rounded-full bg-amber-400 border border-amber-200 flex items-center justify-center text-slate-950 font-black text-[10px] shadow-inner">
                 $
               </div>
               <span className="text-base sm:text-lg font-black text-amber-300 font-mono tabular-nums">
-                {coins}
+                {score.toLocaleString()}
               </span>
             </div>
 
             {/* Quick Pause */}
             <button
               onClick={onPauseToggle}
-              className="p-1.5 sm:p-2 rounded-xl bg-slate-950/80 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white transition backdrop-blur-md shadow-xl cursor-pointer"
+              className="p-1.5 sm:p-2 rounded-xl bg-slate-950/88 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white transition shadow-xl cursor-pointer"
               title="Pause Run (P or Esc)"
             >
               <Pause className="w-4 h-4" />
@@ -149,7 +155,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
 
         {/* Active Powerup Banner (centered underneath if active) */}
         {powerupMessage && (
-          <div className="self-center bg-emerald-500/90 backdrop-blur-md text-slate-950 font-bold px-3.5 py-1 rounded-full shadow-lg border border-emerald-300 text-xs tracking-wider uppercase animate-bounce flex items-center gap-1.5 mt-1">
+          <div className="self-center bg-emerald-500/95 text-slate-950 font-bold px-3.5 py-1 rounded-full shadow-lg border border-emerald-300 text-xs tracking-wider uppercase animate-bounce flex items-center gap-1.5 mt-1">
             <Zap className="w-3.5 h-3.5 text-slate-950 fill-slate-950" />
             <span>{powerupMessage}</span>
           </div>
@@ -251,8 +257,54 @@ export const GameHUD: React.FC<GameHUDProps> = ({
         </div>
       )}
 
-      {/* Intentionally completely open bottom area: NO bottom navigation buttons! */}
-      <div className="w-full pointer-events-none" />
+      {/* Bottom Corner YES / NO Directional Arrow Controls */}
+      <div className="w-full flex items-end justify-between gap-4 pointer-events-none">
+        {/* Bottom-Left Corner: YES (Left Tunnel) */}
+        <button
+          type="button"
+          data-interactive="true"
+          onClick={onChooseYes}
+          className={`pointer-events-auto flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 sm:px-4 sm:py-3 transition-transform duration-150 cursor-pointer shadow-xl ${
+            isLeaningLeft
+              ? 'bg-emerald-950/95 border-emerald-400 text-emerald-200 scale-105'
+              : 'bg-slate-950/90 border-emerald-500/50 text-emerald-300 hover:border-emerald-400'
+          }`}
+          title="Steer Left (YES)"
+        >
+          <ArrowLeft className="w-6 h-6 sm:w-7 sm:h-7 text-emerald-400 shrink-0" />
+          <div className="flex flex-col items-start text-left">
+            <span className="text-base sm:text-xl font-black tracking-wide leading-none text-emerald-300">
+              YES
+            </span>
+            <span className="text-[11px] sm:text-xs font-mono text-slate-200 mt-1 whitespace-nowrap">
+              {leftAction}
+            </span>
+          </div>
+        </button>
+
+        {/* Bottom-Right Corner: NO (Right Tunnel) */}
+        <button
+          type="button"
+          data-interactive="true"
+          onClick={onChooseNo}
+          className={`pointer-events-auto flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 sm:px-4 sm:py-3 transition-transform duration-150 cursor-pointer shadow-xl ${
+            isLeaningRight
+              ? 'bg-rose-950/95 border-rose-400 text-rose-200 scale-105'
+              : 'bg-slate-950/90 border-rose-500/50 text-rose-300 hover:border-rose-400'
+          }`}
+          title="Steer Right (NO)"
+        >
+          <div className="flex flex-col items-end text-right">
+            <span className="text-base sm:text-xl font-black tracking-wide leading-none text-rose-300">
+              NO
+            </span>
+            <span className="text-[11px] sm:text-xs font-mono text-slate-200 mt-1 whitespace-nowrap">
+              {rightAction}
+            </span>
+          </div>
+          <ArrowRight className="w-6 h-6 sm:w-7 sm:h-7 text-rose-400 shrink-0" />
+        </button>
+      </div>
     </div>
   );
 };

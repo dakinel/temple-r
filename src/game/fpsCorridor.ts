@@ -1,4 +1,9 @@
 import * as THREE from 'three';
+import {
+  createPremiumDollarFloorTextures,
+  createDollarBillTrailTexture,
+  createStackedEdgeTexture,
+} from './textures';
 
 /**
  * Keith Clark CSS FPS 3D Corridor Environment.
@@ -315,6 +320,13 @@ export class FpsCorridor {
   private wallMaterial: THREE.MeshStandardMaterial;
   private ceilMaterial: THREE.MeshStandardMaterial;
   private floorMaterial: THREE.MeshStandardMaterial;
+  private cashBrickMaterials: THREE.MeshStandardMaterial[] = [];
+  private wallGeom: THREE.PlaneGeometry;
+  private ceilGeom: THREE.PlaneGeometry;
+  private floorGeom: THREE.PlaneGeometry;
+  private cashBrickGeom: THREE.BoxGeometry;
+  private cornerBeamGeom: THREE.BoxGeometry;
+  private beamMat: THREE.MeshBasicMaterial;
   private textures: THREE.Texture[] = [];
   private geometries: THREE.BufferGeometry[] = [];
 
@@ -326,136 +338,235 @@ export class FpsCorridor {
   private sections: THREE.Group[] = [];
   private totalLength: number;
 
-  constructor(scene: THREE.Scene) {
+  constructor(scene: THREE.Scene, maxAnisotropy = 8) {
     this.group = new THREE.Group();
     this.totalLength = this.sectionLength * this.sectionCount;
 
-    // Load textures with graceful procedural fallback
-    const loader = new THREE.TextureLoader();
-    loader.setCrossOrigin('anonymous');
-
     // 1. Wall texture - Egyptian Hieroglyphic Sandstone
     const wallProceduralTex = new THREE.CanvasTexture(createProceduralWallCanvas());
+    wallProceduralTex.colorSpace = THREE.SRGBColorSpace;
     wallProceduralTex.wrapS = THREE.RepeatWrapping;
     wallProceduralTex.wrapT = THREE.RepeatWrapping;
     wallProceduralTex.repeat.set(4, 1);
+    wallProceduralTex.anisotropy = maxAnisotropy;
     this.textures.push(wallProceduralTex);
 
     this.wallMaterial = new THREE.MeshStandardMaterial({
       map: wallProceduralTex,
-      roughness: 0.75,
+      roughness: 0.82,
       metalness: 0.15,
-      color: 0xdeb887, // Warm Egyptian sandstone
+      color: 0x6b5740, // Darkened Egyptian sandstone
     });
 
     // 2. Ceiling texture - Royal Egyptian Astronomical Star Ceiling
     const ceilProceduralTex = new THREE.CanvasTexture(createProceduralCeilCanvas());
+    ceilProceduralTex.colorSpace = THREE.SRGBColorSpace;
     ceilProceduralTex.wrapS = THREE.RepeatWrapping;
     ceilProceduralTex.wrapT = THREE.RepeatWrapping;
     ceilProceduralTex.repeat.set(2, 4);
+    ceilProceduralTex.anisotropy = maxAnisotropy;
     this.textures.push(ceilProceduralTex);
 
     this.ceilMaterial = new THREE.MeshStandardMaterial({
       map: ceilProceduralTex,
-      roughness: 0.65,
+      roughness: 0.72,
       metalness: 0.25,
-      color: 0xb8860b, // Dark golden sandstone beam with lapis vault
+      color: 0x4a3a18, // Darkened vault ceiling
     });
 
-    // 3. Floor texture - Ancient Egyptian Temple Flagstone
-    const floorProceduralTex = new THREE.CanvasTexture(createProceduralFloorCanvas());
-    floorProceduralTex.wrapS = THREE.RepeatWrapping;
-    floorProceduralTex.wrapT = THREE.RepeatWrapping;
-    floorProceduralTex.repeat.set(2, 4);
-    this.textures.push(floorProceduralTex);
+    // 3. Floor texture - Matte Stacked $100 Dollar Bundles (Zero shine, paper bump relief)
+    const dollarFloor = createPremiumDollarFloorTextures(maxAnisotropy);
+    dollarFloor.map.repeat.set(2, 8);
+    dollarFloor.roughnessMap.repeat.set(2, 8);
+    dollarFloor.bumpMap.repeat.set(2, 8);
+    this.textures.push(dollarFloor.map, dollarFloor.roughnessMap, dollarFloor.bumpMap);
 
     this.floorMaterial = new THREE.MeshStandardMaterial({
-      map: floorProceduralTex,
-      roughness: 0.5,
-      metalness: 0.25,
-      color: 0xd2b48c, // Weathered tan quartzite temple floor
+      map: dollarFloor.map,
+      roughnessMap: dollarFloor.roughnessMap,
+      bumpMap: dollarFloor.bumpMap,
+      bumpScale: 0.055,
+      roughness: 1.0,
+      metalness: 0.0,
+      envMapIntensity: 0.05,
+      color: 0xffffff,
     });
+
+    // 3D Stacked Cash Brick Materials (Matte paper top + stacked edge sides)
+    const billTopTex = createDollarBillTrailTexture(maxAnisotropy);
+    const billEdgeTex = createStackedEdgeTexture(maxAnisotropy);
+    this.textures.push(billTopTex, billEdgeTex);
+
+    const topMat = new THREE.MeshStandardMaterial({
+      map: billTopTex,
+      roughness: 1.0,
+      metalness: 0.0,
+      envMapIntensity: 0.05,
+    });
+    const edgeMat = new THREE.MeshStandardMaterial({
+      map: billEdgeTex,
+      roughness: 1.0,
+      metalness: 0.0,
+      envMapIntensity: 0.05,
+    });
+    this.cashBrickMaterials = [edgeMat, edgeMat, topMat, topMat, edgeMat, edgeMat];
+
+    // Shared Geometries
+    this.wallGeom = new THREE.PlaneGeometry(this.sectionLength, this.height);
+    this.ceilGeom = new THREE.PlaneGeometry(this.width, this.sectionLength);
+    this.floorGeom = new THREE.PlaneGeometry(this.width, this.sectionLength, 32, 64);
+    this.sculptDollarFloorGeometry(this.floorGeom);
+
+    this.cashBrickGeom = new THREE.BoxGeometry(0.68, 0.14, 0.36);
+    this.cornerBeamGeom = new THREE.BoxGeometry(0.12, 0.12, this.sectionLength);
+    this.beamMat = new THREE.MeshBasicMaterial({
+      color: 0x1a140d,
+      transparent: true,
+      opacity: 0.9,
+    });
+
+    this.geometries.push(
+      this.wallGeom,
+      this.ceilGeom,
+      this.floorGeom,
+      this.cashBrickGeom,
+      this.cornerBeamGeom
+    );
 
     // 4. Build Modular Corridor Sections
     for (let i = 0; i < this.sectionCount; i++) {
-      const sectionGroup = this.createCorridorSection();
+      const sectionGroup = this.createCorridorSection(i);
       sectionGroup.position.set(0, 0, i * this.sectionLength);
       this.sections.push(sectionGroup);
       this.group.add(sectionGroup);
     }
 
-    // 5. Environmental Lighting Rig - Warm Ancient Egyptian Tomb Torchlight Atmosphere
-    const ambientLight = new THREE.AmbientLight(0x2a180a, 0.35);
+    // 5. Minimal Dark Corridor Ambient Fill
+    const ambientLight = new THREE.AmbientLight(0x11151d, 0.08);
     this.group.add(ambientLight);
 
     scene.add(this.group);
   }
 
-  private createCorridorSection(): THREE.Group {
+  /**
+   * Deterministic, section-seamless height profile for stacked dollar mounds
+   * so consecutive corridor sections join with zero seam gaps while breaking
+   * up the flat straight floor look.
+   */
+  private sampleDollarFloorOffset(x: number, zInSection: number): number {
+    const phaseZ = (zInSection / this.sectionLength) * Math.PI * 2;
+    const mounds =
+      Math.sin(phaseZ * 2 + x * 0.95) * 0.042 +
+      Math.cos(phaseZ * 3 - x * 1.35) * 0.03 +
+      Math.sin(phaseZ * 5 + x * 2.05) * 0.018;
+    const steps = Math.tanh(Math.sin(phaseZ * 4 + x * 1.15) * 2.4) * 0.028;
+
+    const edgeRatio = Math.min(1, Math.abs(x) / (this.width * 0.5));
+    const edgeBank =
+      Math.pow(edgeRatio, 2.0) *
+      (0.14 +
+        0.11 * Math.sin(phaseZ * 3 + Math.sign(x) * 1.1) +
+        0.05 * Math.cos(phaseZ * 5 + x * 1.8));
+
+    return mounds + steps + edgeBank;
+  }
+
+  private sculptDollarFloorGeometry(geom: THREE.PlaneGeometry) {
+    const pos = geom.attributes.position;
+    const halfLen = this.sectionLength * 0.5;
+    for (let i = 0; i < pos.count; i++) {
+      const vx = pos.getX(i);
+      const vy = pos.getY(i); // Maps to -zLocal after rotation.x = -Math.PI / 2
+      const zInSection = halfLen - vy;
+      const heightOffset = this.sampleDollarFloorOffset(vx, zInSection);
+      pos.setZ(i, heightOffset);
+    }
+    pos.needsUpdate = true;
+    geom.computeVertexNormals();
+  }
+
+  private createCorridorSection(sectionIndex: number): THREE.Group {
     const section = new THREE.Group();
     const halfW = this.width * 0.5;
     const len = this.sectionLength;
 
     // Left Wall
-    const wallGeom = new THREE.PlaneGeometry(len, this.height);
-    this.geometries.push(wallGeom);
-
-    const leftWall = new THREE.Mesh(wallGeom, this.wallMaterial);
+    const leftWall = new THREE.Mesh(this.wallGeom, this.wallMaterial);
     leftWall.rotation.y = Math.PI / 2;
     leftWall.position.set(-halfW, this.height * 0.5 - 0.2, len * 0.5);
     leftWall.receiveShadow = true;
     section.add(leftWall);
 
     // Right Wall
-    const rightWall = new THREE.Mesh(wallGeom, this.wallMaterial);
+    const rightWall = new THREE.Mesh(this.wallGeom, this.wallMaterial);
     rightWall.rotation.y = -Math.PI / 2;
     rightWall.position.set(halfW, this.height * 0.5 - 0.2, len * 0.5);
     rightWall.receiveShadow = true;
     section.add(rightWall);
 
     // Ceiling
-    const ceilGeom = new THREE.PlaneGeometry(this.width, len);
-    this.geometries.push(ceilGeom);
-
-    const ceiling = new THREE.Mesh(ceilGeom, this.ceilMaterial);
+    const ceiling = new THREE.Mesh(this.ceilGeom, this.ceilMaterial);
     ceiling.rotation.x = Math.PI / 2;
     ceiling.position.set(0, this.height - 0.2, len * 0.5);
     ceiling.receiveShadow = true;
     section.add(ceiling);
 
-    // Floor Base (Under the ticker tape)
-    const floorMesh = new THREE.Mesh(ceilGeom, this.floorMaterial);
+    // Uneven Multi-Height Stacked Dollar Floor
+    const floorMesh = new THREE.Mesh(this.floorGeom, this.floorMaterial);
     floorMesh.rotation.x = -Math.PI / 2;
     floorMesh.position.set(0, -0.21, len * 0.5);
     floorMesh.receiveShadow = true;
     section.add(floorMesh);
 
-    // Inset Corner Architrave Beams (carved ancient Egyptian sandstone moldings)
-    const beamMat = new THREE.MeshBasicMaterial({
-      color: 0x4d3215,
-      transparent: true,
-      opacity: 0.85,
-    });
-    const cornerBeamGeom = new THREE.BoxGeometry(0.12, 0.12, len);
-    this.geometries.push(cornerBeamGeom);
+    // 3D Stacked Cash Bundles of Varying Heights resting across the uneven floor
+    const brickCount = 38;
+    const cashStacks = new THREE.InstancedMesh(
+      this.cashBrickGeom,
+      this.cashBrickMaterials,
+      brickCount
+    );
+    cashStacks.receiveShadow = true;
+    cashStacks.castShadow = true;
 
-    // Left floor corner
-    const beamLF = new THREE.Mesh(cornerBeamGeom, beamMat);
-    beamLF.position.set(-halfW + 0.06, -0.15, len * 0.5);
-    section.add(beamLF);
+    const dummy = new THREE.Object3D();
+    for (let i = 0; i < brickCount; i++) {
+      const seed = sectionIndex * 97 + i * 31;
+      const pseudoA = Math.abs(Math.sin(seed * 12.9898) * 43758.5453) % 1;
+      const pseudoB = Math.abs(Math.sin((seed + 7) * 78.233) * 43758.5453) % 1;
+      const pseudoC = Math.abs(Math.sin((seed + 19) * 39.425) * 43758.5453) % 1;
 
-    // Right floor corner
-    const beamRF = new THREE.Mesh(cornerBeamGeom, beamMat);
-    beamRF.position.set(halfW - 0.06, -0.15, len * 0.5);
-    section.add(beamRF);
+      const zPos = 0.6 + ((i + 0.5) / brickCount) * (len - 1.2);
+      // Place taller stacks along left/right flanks and low scattered bundles in center lanes
+      const isFlank = i % 3 !== 0;
+      const sideSign = i % 2 === 0 ? -1 : 1;
+      const bx = isFlank
+        ? sideSign * (1.45 + pseudoA * 0.98)
+        : (pseudoA - 0.5) * 2.2;
 
-    // Left ceiling corner
-    const beamLC = new THREE.Mesh(cornerBeamGeom, beamMat);
+      const scaleY = isFlank ? 0.75 + pseudoB * 1.85 : 0.32 + pseudoB * 0.42;
+      const scaleXZ = 0.85 + pseudoC * 0.45;
+      const floorY = -0.21 + this.sampleDollarFloorOffset(bx, zPos);
+
+      dummy.position.set(bx, floorY + 0.07 * scaleY - 0.02, zPos);
+      dummy.rotation.set(
+        (pseudoB - 0.5) * 0.14,
+        (pseudoA - 0.5) * 1.1,
+        (pseudoC - 0.5) * 0.14
+      );
+      dummy.scale.set(scaleXZ, scaleY, scaleXZ);
+      dummy.updateMatrix();
+      cashStacks.setMatrixAt(i, dummy.matrix);
+    }
+    cashStacks.instanceMatrix.needsUpdate = true;
+    cashStacks.computeBoundingSphere();
+    section.add(cashStacks);
+
+    // Top ceiling corner beams only (bottom corners left free for uneven cash piles)
+    const beamLC = new THREE.Mesh(this.cornerBeamGeom, this.beamMat);
     beamLC.position.set(-halfW + 0.06, this.height - 0.26, len * 0.5);
     section.add(beamLC);
 
-    // Right ceiling corner
-    const beamRC = new THREE.Mesh(cornerBeamGeom, beamMat);
+    const beamRC = new THREE.Mesh(this.cornerBeamGeom, this.beamMat);
     beamRC.position.set(halfW - 0.06, this.height - 0.26, len * 0.5);
     section.add(beamRC);
 
@@ -486,5 +597,7 @@ export class FpsCorridor {
     this.wallMaterial.dispose();
     this.ceilMaterial.dispose();
     this.floorMaterial.dispose();
+    this.beamMat.dispose();
+    this.cashBrickMaterials.forEach((m) => m.dispose());
   }
 }

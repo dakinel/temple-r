@@ -2,9 +2,12 @@ import React from 'react';
 import { Play, Trophy, Users, TrendingUp, MousePointer, ArrowLeftRight } from 'lucide-react';
 import { AdventurerProfile, getDiceBearAvatarUrl } from '../game/adventurers';
 
+import { MarketQuery } from '../game/queries';
+
 interface StartScreenProps {
   highScore: number;
   adventurer: AdventurerProfile;
+  marketQueries: MarketQuery[];
   onOpenAdventurerSelect: () => void;
   onStartGame: () => void;
 }
@@ -12,20 +15,32 @@ interface StartScreenProps {
 export const StartScreen: React.FC<StartScreenProps> = ({
   highScore,
   adventurer,
+  marketQueries,
   onOpenAdventurerSelect,
   onStartGame,
 }) => {
   const avatarUrl = getDiceBearAvatarUrl(adventurer.seed);
+  const topTickers = marketQueries.slice(0, 3);
 
   return (
     <div className="absolute inset-0 z-30 bg-slate-950/85 backdrop-blur-xs flex items-center justify-center p-4 select-none">
       <div className="max-w-lg w-full bg-slate-900 border-2 border-emerald-500/60 rounded-3xl p-6 sm:p-7 shadow-2xl text-center relative overflow-hidden">
-        {/* Ticker tape micro watermark border */}
-        <div className="absolute top-2.5 left-4 right-4 flex items-center justify-between text-[10px] font-mono font-bold text-emerald-400/40 tracking-wider">
-          <span>NVDA ▲ +4.8%</span>
-          <span>BTC ▲ +6.2%</span>
-          <span>SPY ▲ +0.9%</span>
-          <span>WALL STREET OPEN</span>
+        {/* Live ticker tape header */}
+        <div className="absolute top-2.5 left-4 right-4 flex items-center justify-between text-[10px] font-mono font-bold tracking-wider">
+          {topTickers.map((q) => {
+            const isUp = !q.change.startsWith('-');
+            return (
+              <span
+                key={q.id}
+                className={isUp ? 'text-emerald-400/70' : 'text-rose-400/70'}
+              >
+                {q.ticker} {isUp ? '▲' : '▼'} {q.change}
+              </span>
+            );
+          })}
+          <span className="text-emerald-400/50">
+            {topTickers[0]?.marketSource === 'live' ? 'LIVE DATA' : 'MARKET DATA'}
+          </span>
         </div>
 
         {/* Bull Market Trophy Badge */}
@@ -43,11 +58,11 @@ export const StartScreen: React.FC<StartScreenProps> = ({
           Live Decision Screen · Steer Left for YES · Steer Right for NO
         </p>
 
-        {/* Best Profit Record */}
+        {/* Best Score Record */}
         {highScore > 0 && (
           <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-950/70 border border-emerald-500/50 text-emerald-300 text-xs font-bold mb-4 shadow">
             <Trophy className="w-3.5 h-3.5 text-amber-400" />
-            <span>RECORD PORTFOLIO: ${highScore.toLocaleString()}</span>
+            <span>BEST SCORE: ${highScore.toLocaleString()}</span>
           </div>
         )}
 

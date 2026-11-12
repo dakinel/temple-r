@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { createCandlestickTexture } from './textures';
+import { createCandlestickTexture, createPremiumDollarFloorTextures } from './textures';
 import {
   createFallenTreeObstacle,
   createGoldCoin,
@@ -10,9 +10,13 @@ export type ObstacleType = 'none' | 'crash_dip';
 
 export interface CoinInstance {
   mesh: THREE.Mesh;
+  segmentGroup: THREE.Group;
   worldPos: THREE.Vector3;
   lane: number;
   collected: boolean;
+  absorbing: boolean;
+  absorbProgress: number;
+  absorbStartPos: THREE.Vector3;
 }
 
 export interface ObstacleInstance {
@@ -85,12 +89,18 @@ export class TrackManager {
   public forks: ForkInstance[] = [];
   private segmentCounter: number = 0;
   private queryCounter: number = 0;
+  public queries: MarketQuery[] = MARKET_QUERIES;
 
   // Materials
   private candlestickTexture: THREE.CanvasTexture;
   private hazardTexture: THREE.CanvasTexture;
   private neonGreenMat: THREE.MeshStandardMaterial;
   private neonRoseMat: THREE.MeshStandardMaterial;
+  private bullCandleBodyMat: THREE.MeshStandardMaterial;
+  private bearCandleBodyMat: THREE.MeshStandardMaterial;
+  private bullWickMat: THREE.MeshStandardMaterial;
+  private bearWickMat: THREE.MeshStandardMaterial;
+  private candleMountIronMat: THREE.MeshStandardMaterial;
   private stoneDividerMat: THREE.MeshStandardMaterial;
   private hazardMat: THREE.MeshStandardMaterial;
   private tunnelRoadMat: THREE.MeshStandardMaterial;
@@ -98,15 +108,21 @@ export class TrackManager {
   // Egyptian Tomb Materials
   private egyptianSandstoneMat: THREE.MeshStandardMaterial;
   private egyptianGoldMat: THREE.MeshStandardMaterial;
-  private egyptianTorchFlameMat: THREE.MeshStandardMaterial;
   private egyptianBronzeMat: THREE.MeshStandardMaterial;
+
+  // Shared Geometries for Stock Market Candlesticks
+  private candleBracketGeom: THREE.BoxGeometry;
+  private candlePlateGeom: THREE.BoxGeometry;
+  private candleBodyGeom: THREE.BoxGeometry;
+  private candleCapGeom: THREE.BoxGeometry;
+  private candleWickGeom: THREE.CylinderGeometry;
 
   // Dimensions
   public readonly trackWidth: number = 4.2;
   public readonly laneOffset: number = 1.85; // Allows clean steering into Left (-1.85) or Right (+1.85) road
   public readonly segmentLength: number = 28.0;
 
-  constructor(scene: THREE.Scene) {
+  constructor(scene: THREE.Scene, maxAnisotropy = 8) {
     this.scene = scene;
     this.candlestickTexture = createCandlestickTexture();
     this.hazardTexture = createHazardTexture();
@@ -114,69 +130,125 @@ export class TrackManager {
     this.neonGreenMat = new THREE.MeshStandardMaterial({
       color: 0x10b981,
       emissive: 0x059669,
-      emissiveIntensity: 2.2,
+      emissiveIntensity: 1.8,
       roughness: 0.2,
     });
 
     this.neonRoseMat = new THREE.MeshStandardMaterial({
       color: 0xf43f5e,
       emissive: 0xe11d48,
-      emissiveIntensity: 2.2,
+      emissiveIntensity: 1.8,
       roughness: 0.2,
     });
 
-    this.egyptianGoldMat = new THREE.MeshStandardMaterial({
-      color: 0xd4af37,
-      emissive: 0x855b27,
-      emissiveIntensity: 0.3,
-      metalness: 0.85,
-      roughness: 0.25,
+    this.bullCandleBodyMat = new THREE.MeshStandardMaterial({
+      color: 0x10b981,
+      emissive: 0x059669,
+      emissiveIntensity: 1.55,
+      roughness: 0.28,
+      metalness: 0.2,
     });
 
-    this.egyptianTorchFlameMat = new THREE.MeshStandardMaterial({
-      color: 0xff7700,
-      emissive: 0xffaa00,
-      emissiveIntensity: 3.5,
-      roughness: 0.1,
+    this.bearCandleBodyMat = new THREE.MeshStandardMaterial({
+      color: 0xef4444,
+      emissive: 0xdc2626,
+      emissiveIntensity: 1.55,
+      roughness: 0.28,
+      metalness: 0.2,
+    });
+
+    this.bullWickMat = new THREE.MeshStandardMaterial({
+      color: 0x6ee7b7,
+      emissive: 0x10b981,
+      emissiveIntensity: 1.35,
+      roughness: 0.35,
+      metalness: 0.4,
+    });
+
+    this.bearWickMat = new THREE.MeshStandardMaterial({
+      color: 0xfca5a5,
+      emissive: 0xef4444,
+      emissiveIntensity: 1.35,
+      roughness: 0.35,
+      metalness: 0.4,
+    });
+
+    this.candleMountIronMat = new THREE.MeshStandardMaterial({
+      color: 0x2a2f37,
+      metalness: 0.88,
+      roughness: 0.44,
+    });
+
+    this.candleBracketGeom = new THREE.BoxGeometry(0.28, 0.05, 0.06);
+    this.candlePlateGeom = new THREE.BoxGeometry(0.05, 0.26, 0.26);
+    this.candleBodyGeom = new THREE.BoxGeometry(0.18, 1.0, 0.22);
+    this.candleCapGeom = new THREE.BoxGeometry(0.21, 0.035, 0.25);
+    this.candleWickGeom = new THREE.CylinderGeometry(0.018, 0.018, 1.0, 8);
+
+    this.egyptianGoldMat = new THREE.MeshStandardMaterial({
+      color: 0xb89328,
+      emissive: 0x4a3212,
+      emissiveIntensity: 0.2,
+      metalness: 0.85,
+      roughness: 0.28,
     });
 
     this.egyptianBronzeMat = new THREE.MeshStandardMaterial({
-      color: 0x78481d,
-      metalness: 0.75,
-      roughness: 0.35,
+      color: 0x563416,
+      metalness: 0.78,
+      roughness: 0.38,
     });
 
     this.egyptianSandstoneMat = new THREE.MeshStandardMaterial({
-      color: 0xc89e62,
-      roughness: 0.75,
+      color: 0x7d613b,
+      roughness: 0.82,
       metalness: 0.15,
     });
 
     this.frameMat = new THREE.MeshStandardMaterial({
-      color: 0x8c6230,
-      roughness: 0.6,
+      color: 0x5c4020,
+      roughness: 0.65,
       metalness: 0.3,
     });
 
     this.stoneDividerMat = new THREE.MeshStandardMaterial({
-      color: 0xa67a3e,
-      roughness: 0.75,
+      color: 0x6b4f28,
+      roughness: 0.8,
       metalness: 0.15,
     });
 
     this.hazardMat = new THREE.MeshStandardMaterial({
       map: this.hazardTexture,
-      roughness: 0.6,
+      roughness: 0.65,
       metalness: 0.2,
     });
 
+    const tunnelDollar = createPremiumDollarFloorTextures(maxAnisotropy);
+    tunnelDollar.map.repeat.set(1, 8);
+    tunnelDollar.roughnessMap.repeat.set(1, 8);
+    tunnelDollar.bumpMap.repeat.set(1, 8);
+
     this.tunnelRoadMat = new THREE.MeshStandardMaterial({
-      color: 0xba8c50,
-      roughness: 0.5,
-      metalness: 0.2,
+      map: tunnelDollar.map,
+      roughnessMap: tunnelDollar.roughnessMap,
+      bumpMap: tunnelDollar.bumpMap,
+      bumpScale: 0.055,
+      roughness: 1.0,
+      metalness: 0.0,
+      envMapIntensity: 0.05,
+      color: 0xffffff,
     });
 
     this.reset();
+  }
+
+  public setQueries(queries: MarketQuery[], rebuild = false) {
+    if (queries.length > 0) {
+      this.queries = queries;
+      if (rebuild) {
+        this.reset();
+      }
+    }
   }
 
   public reset() {
@@ -237,9 +309,15 @@ export class TrackManager {
     const dir = new THREE.Vector3(Math.sin(headingAngle), 0, Math.cos(headingAngle));
     const endPos = startPos.clone().add(dir.clone().multiplyScalar(length));
 
-    // Subtle candlestick sconces along straight sections
-    for (let z = 4; z < length - 2; z += 8) {
-      this.addCandlestickSconces(group, z);
+    // Determine the upcoming stock market query driving this segment's candlestick data
+    const activeQueries = this.queries.length > 0 ? this.queries : MARKET_QUERIES;
+    const upcomingQuery = activeQueries[this.queryCounter % activeQueries.length];
+
+    // Stock market candlesticks flanking left and right, aligned to the active stock's market data
+    let candleStep = 0;
+    for (let z = 3; z < length - 2; z += 5.5) {
+      this.addStockMarketCandlesticks(group, z, id, upcomingQuery, candleStep);
+      candleStep++;
     }
 
     let forkInstance: ForkInstance | undefined;
@@ -247,8 +325,8 @@ export class TrackManager {
     // --- TUNNEL FORK & END-OF-TUNNEL QUERY BOARD ---
     // (Doors completely removed! Open Left & Right road tunnels with End-of-Tunnel query wall)
     if (spawnFork) {
-      const qIdx = this.queryCounter % MARKET_QUERIES.length;
-      const query = MARKET_QUERIES[qIdx];
+      const qIdx = this.queryCounter % activeQueries.length;
+      const query = activeQueries[qIdx];
       this.queryCounter++;
 
       const forkZ = length * 0.45;
@@ -300,9 +378,9 @@ export class TrackManager {
     // Gold Bullion Coins ($) along Corridor Floor
     if (spawnCoins && !spawnFork) {
       const coinLane = Math.floor(Math.random() * 3) - 1;
-      const coinCount = 3;
-      const startZ = length * 0.25;
-      const spacing = 2.0;
+      const coinCount = 2;
+      const startZ = length * 0.3;
+      const spacing = 2.4;
 
       for (let c = 0; c < coinCount; c++) {
         const coinZ = startZ + c * spacing;
@@ -318,9 +396,13 @@ export class TrackManager {
 
         const coinInst: CoinInstance = {
           mesh: coinMesh,
+          segmentGroup: group,
           worldPos,
           lane: coinLane,
           collected: false,
+          absorbing: false,
+          absorbProgress: 0,
+          absorbStartPos: new THREE.Vector3(),
         };
         coins.push(coinInst);
         this.coins.push(coinInst);
@@ -358,8 +440,21 @@ export class TrackManager {
     // 1. LEFT EGYPTIAN TOMB PORTAL (YES / BUY Selection)
     // Completely OPEN! Runner steers left into it.
     // ========================================================
-    // Left road ancient temple flagstone floor
-    const leftRoadGeom = new THREE.PlaneGeometry(2.4, branchLen);
+    // Left road stacked dollar ground with varied heights
+    const leftRoadGeom = new THREE.PlaneGeometry(2.4, branchLen, 12, 40);
+    const roadPos = leftRoadGeom.attributes.position;
+    for (let i = 0; i < roadPos.count; i++) {
+      const rx = roadPos.getX(i);
+      const ry = roadPos.getY(i);
+      const wave =
+        Math.sin(ry * 0.75 + rx * 1.3) * 0.035 +
+        Math.cos(ry * 1.4 - rx * 1.9) * 0.02 +
+        Math.pow(Math.min(1, Math.abs(rx) / 1.2), 2) * 0.06;
+      roadPos.setZ(i, wave);
+    }
+    roadPos.needsUpdate = true;
+    leftRoadGeom.computeVertexNormals();
+
     const leftRoad = new THREE.Mesh(leftRoadGeom, this.tunnelRoadMat);
     leftRoad.rotation.x = -Math.PI / 2;
     leftRoad.position.set(-1.85, 0.01, branchLen * 0.5);
@@ -395,15 +490,15 @@ export class TrackManager {
     leftSign.position.set(-1.85, 3.3, 0.2);
     forkGroup.add(leftSign);
 
-    // Left Portal Warm Torch Sconces
-    const portalTorchL = new THREE.PointLight(0x10b981, 2.2, 8);
+    // Left Portal Stock Candlestick Accent Light
+    const portalTorchL = new THREE.PointLight(0x10b981, 1.2, 6.5);
     portalTorchL.position.set(-1.85, 3.2, -0.5);
     forkGroup.add(portalTorchL);
 
     // Left Passage Interior: Safe Path vs Lethal Spike Trap
     if (query.correctSide === 'left') {
       // Safe passage: Golden clearance glow & sacred treasure
-      const safeGlow = new THREE.PointLight(0xf59e0b, 2.8, 10);
+      const safeGlow = new THREE.PointLight(0xf59e0b, 1.4, 8);
       safeGlow.position.set(-1.85, 2.0, 4.0);
       forkGroup.add(safeGlow);
 
@@ -412,7 +507,7 @@ export class TrackManager {
       forkGroup.add(bonusCoin);
     } else {
       // Lethal Trap in Left Passage: Bronze lethal spiked barrier
-      const dangerGlow = new THREE.PointLight(0xef4444, 4.0, 9);
+      const dangerGlow = new THREE.PointLight(0xef4444, 1.8, 7.5);
       dangerGlow.position.set(-1.85, 2.0, 2.5);
       forkGroup.add(dangerGlow);
 
@@ -467,13 +562,13 @@ export class TrackManager {
     rightSign.position.set(1.85, 3.3, 0.2);
     forkGroup.add(rightSign);
 
-    const portalTorchR = new THREE.PointLight(0xf43f5e, 2.2, 8);
+    const portalTorchR = new THREE.PointLight(0xf43f5e, 1.2, 6.5);
     portalTorchR.position.set(1.85, 3.2, -0.5);
     forkGroup.add(portalTorchR);
 
     // Right Passage Interior: Safe Path vs Lethal Spike Trap
     if (query.correctSide === 'right') {
-      const safeGlow = new THREE.PointLight(0xf59e0b, 2.8, 10);
+      const safeGlow = new THREE.PointLight(0xf59e0b, 1.4, 8);
       safeGlow.position.set(1.85, 2.0, 4.0);
       forkGroup.add(safeGlow);
 
@@ -481,7 +576,7 @@ export class TrackManager {
       bonusCoin.position.set(1.85, 0.6, 3.5);
       forkGroup.add(bonusCoin);
     } else {
-      const dangerGlow = new THREE.PointLight(0xef4444, 4.0, 9);
+      const dangerGlow = new THREE.PointLight(0xef4444, 1.8, 7.5);
       dangerGlow.position.set(1.85, 2.0, 2.5);
       forkGroup.add(dangerGlow);
 
@@ -521,8 +616,8 @@ export class TrackManager {
     cap.position.set(0, 4.8, -1.6);
     forkGroup.add(cap);
 
-    // Flanked by sacred golden flame beacon on the Obelisk
-    const obeliskLight = new THREE.PointLight(0xffaa33, 2.5, 9);
+    // Subtle beacon on the Obelisk
+    const obeliskLight = new THREE.PointLight(0xffaa33, 1.1, 7);
     obeliskLight.position.set(0, 4.2, -2.5);
     forkGroup.add(obeliskLight);
 
@@ -530,58 +625,114 @@ export class TrackManager {
   }
 
   /**
-   * Authentic Egyptian Flaming Wall Torches
-   * Bronze bracket, fire bowl, flickering flame mesh, and warm amber torchlight.
+   * 3D Stock Market Candlesticks (Left & Right Corridor Walls)
+   * Replaces wall torch lights with bullish green & bearish red OHLC candlesticks
+   * complete with upper/lower wicks, iron wall mounts, and subtle moody colored glow.
    */
-  private addCandlestickSconces(parent: THREE.Group, z: number) {
-    // 1. Bronze Wall Bracket & Torch Shaft
-    const bracketGeom = new THREE.CylinderGeometry(0.04, 0.05, 0.6, 8);
-    bracketGeom.rotateZ(0.25); // Angled outward from the wall
+  private buildSingleStockCandlestick(
+    side: -1 | 1,
+    isBull: boolean,
+    bodyHeight: number,
+    wickHeight: number,
+    wickOffsetY: number
+  ): THREE.Group {
+    const holder = new THREE.Group();
+    const bodyMat = isBull ? this.bullCandleBodyMat : this.bearCandleBodyMat;
+    const wickMat = isBull ? this.bullWickMat : this.bearWickMat;
 
-    const bowlGeom = new THREE.CylinderGeometry(0.12, 0.05, 0.16, 8);
-    const flameGeom = new THREE.ConeGeometry(0.10, 0.35, 8);
+    // Wall backplate & iron horizontal bracket
+    const plate = new THREE.Mesh(this.candlePlateGeom, this.candleMountIronMat);
+    plate.position.set(0, 0, 0);
+    holder.add(plate);
 
-    // Left Wall Torch
-    const leftHolder = new THREE.Group();
-    leftHolder.position.set(-this.trackWidth * 0.5 - 0.05, 1.2, z);
+    const bracket = new THREE.Mesh(this.candleBracketGeom, this.candleMountIronMat);
+    bracket.position.set(-side * 0.14, 0, 0);
+    holder.add(bracket);
 
-    const leftShaft = new THREE.Mesh(bracketGeom, this.egyptianBronzeMat);
-    leftShaft.position.set(0.1, -0.1, 0);
-    leftHolder.add(leftShaft);
+    // Candlestick chart bar assembly mounted on bracket tip
+    const candleX = -side * 0.24;
 
-    const leftBowl = new THREE.Mesh(bowlGeom, this.egyptianBronzeMat);
-    leftBowl.position.set(0.2, 0.12, 0);
-    leftHolder.add(leftBowl);
+    // Upper & lower OHLC wick
+    const wick = new THREE.Mesh(this.candleWickGeom, wickMat);
+    wick.scale.set(1, wickHeight, 1);
+    wick.position.set(candleX, wickOffsetY, 0);
+    holder.add(wick);
 
-    const leftFlame = new THREE.Mesh(flameGeom, this.egyptianTorchFlameMat);
-    leftFlame.position.set(0.2, 0.35, 0);
-    leftHolder.add(leftFlame);
+    // Main rectangular OHLC candle body
+    const body = new THREE.Mesh(this.candleBodyGeom, bodyMat);
+    body.scale.set(1, bodyHeight, 1);
+    body.position.set(candleX, 0, 0);
+    holder.add(body);
 
-    parent.add(leftHolder);
+    // Open & Close dark iron price-level caps
+    const topCap = new THREE.Mesh(this.candleCapGeom, this.candleMountIronMat);
+    topCap.position.set(candleX, bodyHeight * 0.5 + 0.015, 0);
+    holder.add(topCap);
 
-    // Right Wall Torch
-    const rightHolder = new THREE.Group();
-    rightHolder.position.set(this.trackWidth * 0.5 + 0.05, 1.2, z);
+    const bottomCap = new THREE.Mesh(this.candleCapGeom, this.candleMountIronMat);
+    bottomCap.position.set(candleX, -bodyHeight * 0.5 - 0.015, 0);
+    holder.add(bottomCap);
 
-    const rightShaft = new THREE.Mesh(bracketGeom, this.egyptianBronzeMat);
-    rightShaft.rotation.z = -0.25 * 2;
-    rightShaft.position.set(-0.1, -0.1, 0);
-    rightHolder.add(rightShaft);
+    return holder;
+  }
 
-    const rightBowl = new THREE.Mesh(bowlGeom, this.egyptianBronzeMat);
-    rightBowl.position.set(-0.2, 0.12, 0);
-    rightHolder.add(rightBowl);
+  private addStockMarketCandlesticks(
+    parent: THREE.Group,
+    z: number,
+    segmentId: number,
+    marketQuery?: MarketQuery,
+    candleIndex = 0
+  ) {
+    const wallX = this.trackWidth * 0.5 + 0.35;
+    const seed = Math.floor(z * 1.7) + segmentId * 13;
+    const candles = marketQuery?.candles;
+    const candle = candles && candles.length > 0 ? candles[candleIndex % candles.length] : undefined;
+    const trendBull = marketQuery ? marketQuery.chartTrend !== 'bear' : (seed % 3 !== 0);
 
-    const rightFlame = new THREE.Mesh(flameGeom, this.egyptianTorchFlameMat);
-    rightFlame.position.set(-0.2, 0.35, 0);
-    rightHolder.add(rightFlame);
+    // Left wall candlestick matches live stock OHLC bar if available
+    const leftBull = candle ? candle.bull : trendBull;
+    const candleSpread =
+      candle && candle.high > candle.low
+        ? Math.min(0.65, Math.max(0.25, Math.abs(candle.close - candle.open) / (candle.high - candle.low)))
+        : 0.45;
+    const leftBodyH = 0.42 + candleSpread * 0.65;
+    const leftWickH = leftBodyH + 0.44 + ((seed * 3) % 4) * 0.1;
+    const leftY = 1.25 + (leftBull ? 0.14 : -0.14) + Math.sin(seed * 0.9) * 0.2;
+    const leftWickOff = ((seed % 2 === 0) ? 0.08 : -0.08);
 
-    parent.add(rightHolder);
+    const leftCandle = this.buildSingleStockCandlestick(-1, leftBull, leftBodyH, leftWickH, leftWickOff);
+    leftCandle.position.set(-wallX, leftY, z);
+    parent.add(leftCandle);
 
-    // Warm Egyptian Torchlight Point Light (illuminating the hieroglyphic walls)
-    const torchLight = new THREE.PointLight(0xffa238, 1.2, 7.5);
-    torchLight.position.set((z % 16 === 0 ? -1 : 1) * (this.trackWidth * 0.5 - 0.4), 1.5, z);
-    parent.add(torchLight);
+    // Right wall candlestick reflects same stock trend
+    const rightCandleData =
+      candles && candles.length > 0 ? candles[(candleIndex + 1) % candles.length] : undefined;
+    const rightBull = rightCandleData ? rightCandleData.bull : trendBull;
+    const rightBodyH = 0.44 + ((seed * 11) % 5) * 0.12;
+    const rightWickH = rightBodyH + 0.42 + ((seed * 5) % 4) * 0.1;
+    const rightY = 1.25 + (rightBull ? 0.14 : -0.14) + Math.cos(seed * 0.8) * 0.2;
+    const rightWickOff = ((seed % 2 === 1) ? 0.08 : -0.08);
+
+    const rightCandle = this.buildSingleStockCandlestick(1, rightBull, rightBodyH, rightWickH, rightWickOff);
+    rightCandle.position.set(wallX, rightY, z);
+    parent.add(rightCandle);
+
+    // Subtle dark-mood green/red glow on alternating candlesticks
+    if (Math.round(z) % 2 === 0) {
+      const useLeftSide = ((seed % 2) === 0);
+      const isLightBull = useLeftSide ? leftBull : rightBull;
+      const candleLight = new THREE.PointLight(
+        isLightBull ? 0x10b981 : 0xef4444,
+        0.55,
+        5.5
+      );
+      candleLight.position.set(
+        (useLeftSide ? -1 : 1) * (this.trackWidth * 0.5 - 0.15),
+        useLeftSide ? leftY : rightY,
+        z
+      );
+      parent.add(candleLight);
+    }
   }
 
   public update(playerPos: THREE.Vector3, _time: number) {

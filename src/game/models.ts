@@ -8,7 +8,7 @@ import {
 } from './textures';
 
 /**
- * 3D procedural models for character, chasing spider demon, track elements, and obstacles.
+ * 3D procedural models for character, track elements, and obstacles.
  * The runner is a Comic Sci-Fi Robot with:
  * - Pure metal colors (polished steel, chrome, dark titanium, burnished brass)
  * - Way smaller, compact drone body chassis
@@ -28,7 +28,13 @@ export interface AdventurerModel {
   backpack: THREE.Group;
   faceMesh: THREE.Mesh;
   backFaceMesh?: THREE.Mesh;
-  updateAnimation: (time: number, speed: number, state: 'run' | 'jump' | 'slide' | 'fall') => void;
+  updateAnimation: (
+    time: number,
+    speed: number,
+    state: 'run' | 'jump' | 'slide' | 'fall',
+    landingImpact?: number,
+    verticalVel?: number
+  ) => void;
   updateAppearance: (
     shirtColor: number,
     vestColor: number,
@@ -36,14 +42,6 @@ export interface AdventurerModel {
     frontCanvas?: HTMLCanvasElement,
     backCanvas?: HTMLCanvasElement
   ) => void;
-}
-
-export interface SpiderModel {
-  group: THREE.Group;
-  legs: THREE.Group[];
-  mandibles: THREE.Group;
-  abdomen: THREE.Mesh;
-  updateAnimation: (time: number, speed: number, attackLunge: boolean) => void;
 }
 
 /**
@@ -129,13 +127,32 @@ export function createAdventurer(): AdventurerModel {
     roughness: 0.18,
   });
 
-  // Transparent Glass Dome (depthWrite: false ensures face textures are always 100% visible)
-  const glassDomeMat = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
+  // Premium Optical Glass Helmet Dome (depthWrite: false ensures inner head & face stay 100% crisp)
+  const glassDomeMat = new THREE.MeshPhysicalMaterial({
+    color: 0xdff6ff,
     transparent: true,
-    opacity: 0.22,
+    opacity: 0.24,
+    roughness: 0.04,
+    metalness: 0.08,
+    ior: 1.52,
+    reflectivity: 1.0,
+    clearcoat: 1.0,
+    clearcoatRoughness: 0.03,
+    envMapIntensity: 2.6,
+    depthWrite: false,
+    side: THREE.FrontSide,
+  });
+
+  // Subtle Gold-Iridescent Inner Visor Shield Tint
+  const visorTintMat = new THREE.MeshPhysicalMaterial({
+    color: 0xfde68a,
+    transparent: true,
+    opacity: 0.13,
     roughness: 0.06,
-    metalness: 0.1,
+    metalness: 0.25,
+    clearcoat: 1.0,
+    clearcoatRoughness: 0.04,
+    envMapIntensity: 2.2,
     depthWrite: false,
     side: THREE.FrontSide,
   });
@@ -145,6 +162,36 @@ export function createAdventurer(): AdventurerModel {
     color: 0xbac4cf,
     metalness: 0.94,
     roughness: 0.18,
+  });
+
+  // --- Forged Iron & Cybernetic Arm Materials ---
+  // Forged Gunmetal Iron Armor Plates
+  const ironArmPlateMat = new THREE.MeshStandardMaterial({
+    color: 0x4b515b,
+    metalness: 0.88,
+    roughness: 0.42,
+  });
+
+  // Deep Cast-Iron Skeletal Frame & Actuators
+  const darkIronFrameMat = new THREE.MeshStandardMaterial({
+    color: 0x262a31,
+    metalness: 0.90,
+    roughness: 0.48,
+  });
+
+  // Machined Iron Pistons, Pins & Cyber Blade Claws
+  const machinedIronMat = new THREE.MeshStandardMaterial({
+    color: 0x6c7480,
+    metalness: 0.92,
+    roughness: 0.28,
+  });
+
+  // Cybernetic Cyan Optical Conduits & Servo Glow
+  const cyberOpticMat = new THREE.MeshStandardMaterial({
+    color: 0x22d3ee,
+    emissive: 0x06b6d4,
+    emissiveIntensity: 2.4,
+    roughness: 0.15,
   });
 
   // --- WAY SMALLER COMPACT METALLIC BODY (Central Drone Core Pod) ---
@@ -257,71 +304,115 @@ export function createAdventurer(): AdventurerModel {
   chassis.add(createShoulderFins(true));
   chassis.add(createShoulderFins(false));
 
-  // --- PROMINENT DUAL-SIDED CYBERNETIC AVATAR MEDALLION TERMINAL ---
-  // Large, high-visibility disc terminal (radius 0.21m) mounted atop the compact robot chassis.
-  // Front face (+Z) shows the explorer avatar portrait.
-  // Back face (-Z) shows the generated authentic back-of-head avatar seen from the chase camera!
+  // --- PREMIUM 3D GLASS SPACE/CYBER HELMET ENCLOSING THE PLAYER'S HEAD ---
+  // Features a machined-iron locking neck collar, armored side ear-comm pods,
+  // dorsal helmet spine ridge, 3D inner head core with front/back avatar faces,
+  // subtle gold visor shield, and a crystal-clear specular glass bubble dome.
   const headGroup = new THREE.Group();
   headGroup.position.set(0, 1.18, 0);
   group.add(headGroup);
 
-  // Sturdy dark titanium neck pivot joint
+  // Sturdy dark iron neck pivot joint
   const headStem = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.045, 0.065, 0.09, 14),
-    darkTitaniumMat
+    new THREE.CylinderGeometry(0.055, 0.075, 0.08, 16),
+    darkIronFrameMat
   );
-  headStem.position.y = 0.045;
+  headStem.position.y = 0.04;
   headStem.castShadow = true;
   headGroup.add(headStem);
 
-  const neckJointRing = new THREE.Mesh(
-    new THREE.TorusGeometry(0.065, 0.012, 8, 20),
+  // Precision Helmet Neck Seal Collar Ring (Machined Iron + Gold Clamp + Cyber Pressure Seal)
+  const collarBaseRing = new THREE.Mesh(
+    new THREE.TorusGeometry(0.172, 0.032, 14, 32),
+    ironArmPlateMat
+  );
+  collarBaseRing.rotation.x = Math.PI / 2;
+  collarBaseRing.position.y = 0.048;
+  collarBaseRing.castShadow = true;
+  headGroup.add(collarBaseRing);
+
+  const collarGoldClamp = new THREE.Mesh(
+    new THREE.TorusGeometry(0.194, 0.013, 10, 32),
     brassMat
   );
-  neckJointRing.rotation.x = Math.PI / 2;
-  neckJointRing.position.y = 0.06;
-  headGroup.add(neckJointRing);
+  collarGoldClamp.rotation.x = Math.PI / 2;
+  collarGoldClamp.position.y = 0.062;
+  headGroup.add(collarGoldClamp);
 
-  // Cybernetic Terminal Housing (Dual-sided Medallion Casing)
-  const medallionCasing = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.224, 0.224, 0.054, 32),
-    darkTitaniumMat
+  const collarCyberSeal = new THREE.Mesh(
+    new THREE.TorusGeometry(0.184, 0.006, 8, 32),
+    cyberOpticMat
   );
-  medallionCasing.rotation.x = Math.PI / 2;
-  medallionCasing.position.y = 0.14;
-  medallionCasing.castShadow = true;
-  headGroup.add(medallionCasing);
+  collarCyberSeal.rotation.x = Math.PI / 2;
+  collarCyberSeal.position.y = 0.074;
+  headGroup.add(collarCyberSeal);
 
-  // Front & Back Burnished Brass Bezel Rims
-  const frontBezelRim = new THREE.Mesh(
-    new THREE.TorusGeometry(0.222, 0.014, 10, 32),
-    brassMat
+  // 4 Radial Collar Locking Latches
+  for (let l = 0; l < 4; l++) {
+    const ang = (l * Math.PI) / 2 + Math.PI / 4;
+    const latch = new THREE.Mesh(
+      new THREE.BoxGeometry(0.038, 0.036, 0.045),
+      machinedIronMat
+    );
+    latch.position.set(Math.cos(ang) * 0.19, 0.058, Math.sin(ang) * 0.19);
+    latch.rotation.y = -ang;
+    headGroup.add(latch);
+  }
+
+  // Left & Right Armored Helmet Ear-Pod Comm Modules
+  for (const side of [-1, 1]) {
+    const earHousing = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.068, 0.068, 0.052, 16),
+      ironArmPlateMat
+    );
+    earHousing.rotation.z = Math.PI / 2;
+    earHousing.position.set(side * 0.258, 0.185, 0);
+    earHousing.castShadow = true;
+    headGroup.add(earHousing);
+
+    const earTrimRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.056, 0.008, 8, 20),
+      brassMat
+    );
+    earTrimRing.rotation.y = Math.PI / 2;
+    earTrimRing.position.set(side * 0.285, 0.185, 0);
+    headGroup.add(earTrimRing);
+
+    const earOpticDot = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.02, 0.02, 0.012, 12),
+      cyberOpticMat
+    );
+    earOpticDot.rotation.z = Math.PI / 2;
+    earOpticDot.position.set(side * 0.286, 0.185, 0);
+    headGroup.add(earOpticDot);
+  }
+
+  // Dorsal Curved Helmet Spine Crest (Premium profile from rear chase & side cameras)
+  const dorsalSpine = new THREE.Mesh(
+    new THREE.TorusGeometry(0.268, 0.018, 10, 28, Math.PI * 0.72),
+    darkIronFrameMat
   );
-  frontBezelRim.position.set(0, 0.14, 0.028);
-  headGroup.add(frontBezelRim);
+  dorsalSpine.rotation.y = Math.PI / 2;
+  dorsalSpine.rotation.z = Math.PI * 0.18;
+  dorsalSpine.position.set(0, 0.185, 0);
+  headGroup.add(dorsalSpine);
 
-  const backBezelRim = new THREE.Mesh(
-    new THREE.TorusGeometry(0.222, 0.014, 10, 32),
-    brassMat
+  const dorsalTrim = new THREE.Mesh(
+    new THREE.TorusGeometry(0.278, 0.006, 8, 28, Math.PI * 0.62),
+    cyberOpticMat
   );
-  backBezelRim.position.set(0, 0.14, -0.028);
-  headGroup.add(backBezelRim);
+  dorsalTrim.rotation.y = Math.PI / 2;
+  dorsalTrim.rotation.z = Math.PI * 0.23;
+  dorsalTrim.position.set(0, 0.185, 0);
+  headGroup.add(dorsalTrim);
 
-  // Glowing Amber Perimeter Status Light Ring
-  const statusGlowRing = new THREE.Mesh(
-    new THREE.TorusGeometry(0.23, 0.007, 8, 32),
-    palmCoreMat
-  );
-  statusGlowRing.position.set(0, 0.14, 0);
-  headGroup.add(statusGlowRing);
-
-  // Protective Transparent Energy Shield Canopy (depthWrite: false avoids any clipping)
-  const canopyGeom = new THREE.SphereGeometry(0.24, 24, 16);
-  canopyGeom.scale(1, 1.15, 0.55);
-  const glassCanopy = new THREE.Mesh(canopyGeom, glassDomeMat);
-  glassCanopy.position.set(0, 0.14, 0);
-  glassCanopy.renderOrder = 10;
-  headGroup.add(glassCanopy);
+  // Inner 3D Sculpted Head Core (sleek flight hood/cranium inside the glass dome)
+  const innerHeadGeom = new THREE.SphereGeometry(0.178, 24, 20);
+  innerHeadGeom.scale(0.95, 1.04, 0.86);
+  const innerHeadCore = new THREE.Mesh(innerHeadGeom, darkIronFrameMat);
+  innerHeadCore.position.set(0, 0.19, 0);
+  innerHeadCore.castShadow = true;
+  headGroup.add(innerHeadCore);
 
   // Initial Front Face Canvas & Material
   const initFaceCanvas = document.createElement('canvas');
@@ -354,9 +445,9 @@ export function createAdventurer(): AdventurerModel {
     polygonOffsetUnits: -1,
   });
 
-  // Front Face Mesh (visible from front selfie camera mode)
-  const frontFaceMesh = new THREE.Mesh(new THREE.CircleGeometry(0.21, 32), frontFaceMat);
-  frontFaceMesh.position.set(0, 0.14, 0.029);
+  // Front Face Mesh inside glass helmet (visible from front selfie camera mode)
+  const frontFaceMesh = new THREE.Mesh(new THREE.CircleGeometry(0.165, 32), frontFaceMat);
+  frontFaceMesh.position.set(0, 0.19, 0.152);
   headGroup.add(frontFaceMesh);
 
   // Initial Back Face Canvas (authentic back of head with full hair, nape & ears)
@@ -393,17 +484,41 @@ export function createAdventurer(): AdventurerModel {
     polygonOffsetUnits: -1,
   });
 
-  // Back Face Mesh (directly facing the chase camera)
-  const backFaceMesh = new THREE.Mesh(new THREE.CircleGeometry(0.21, 32), backFaceMat);
+  // Back Face Mesh inside glass helmet (directly facing the chase camera)
+  const backFaceMesh = new THREE.Mesh(new THREE.CircleGeometry(0.165, 32), backFaceMat);
   backFaceMesh.rotation.y = Math.PI;
   backFaceMesh.scale.x = -1; // Align texture coordinates with chase camera screen orientation
-  backFaceMesh.position.set(0, 0.14, -0.029);
+  backFaceMesh.position.set(0, 0.19, -0.152);
   headGroup.add(backFaceMesh);
+
+  // Subtle Gold-Tinted Inner Curved Astronaut Visor Shield
+  const visorShieldGeom = new THREE.SphereGeometry(
+    0.258,
+    32,
+    20,
+    Math.PI * 0.15,
+    Math.PI * 0.7,
+    Math.PI * 0.24,
+    Math.PI * 0.46
+  );
+  const visorShield = new THREE.Mesh(visorShieldGeom, visorTintMat);
+  visorShield.position.set(0, 0.185, 0);
+  visorShield.renderOrder = 11;
+  headGroup.add(visorShield);
+
+  // Outer Crystal-Clear Spherical Glass Helmet Bubble Dome
+  const canopyGeom = new THREE.SphereGeometry(0.272, 36, 28);
+  canopyGeom.scale(1.0, 1.06, 1.04);
+  const glassCanopy = new THREE.Mesh(canopyGeom, glassDomeMat);
+  glassCanopy.position.set(0, 0.185, 0);
+  glassCanopy.renderOrder = 12;
+  headGroup.add(glassCanopy);
 
   const faceMesh = frontFaceMesh;
 
-  // --- TWO BIG EXPANDABLE METALLIC ARMS WITH TRI-CLAW HANDS ---
-  // Attached to the compact body at x = ±0.24, creating an exaggerated, agile silhouette!
+  // --- TWO IRON-COLORED CYBER ARMS WITH HYDRAULICS & ARTICULATED CYBER CLAWS ---
+  // Attached to the compact body at x = ±0.24, built from layered iron armor plates,
+  // hydraulic pistons, rotary servo joints, and glowing cybernetic conduits.
   interface ExpandableArm {
     root: THREE.Group;
     shoulderPivot: THREE.Group;
@@ -415,23 +530,24 @@ export function createAdventurer(): AdventurerModel {
   }
 
   function createExpandableArm(isLeft: boolean): ExpandableArm {
+    const side = isLeft ? -1 : 1;
     const root = new THREE.Group();
     // Attached tightly to compact chassis sides
-    root.position.set(isLeft ? -0.24 : 0.24, 0.98, 0);
+    root.position.set(side * 0.24, 0.98, 0);
     group.add(root);
 
-    // Shoulder sphere socket
+    // Cast-iron rotary shoulder socket
     const shoulderSocket = new THREE.Mesh(
-      new THREE.SphereGeometry(0.11, 14, 14),
-      darkTitaniumMat
+      new THREE.SphereGeometry(0.105, 14, 14),
+      darkIronFrameMat
     );
     shoulderSocket.castShadow = true;
     root.add(shoulderSocket);
 
-    // Brass shoulder collar ring
+    // Machined iron shoulder collar ring
     const shoulderRing = new THREE.Mesh(
-      new THREE.TorusGeometry(0.115, 0.015, 8, 18),
-      brassMat
+      new THREE.TorusGeometry(0.112, 0.016, 8, 18),
+      machinedIronMat
     );
     shoulderRing.rotation.y = Math.PI / 2;
     root.add(shoulderRing);
@@ -440,151 +556,257 @@ export function createAdventurer(): AdventurerModel {
     const shoulderPivot = new THREE.Group();
     root.add(shoulderPivot);
 
-    // Telescoping Upper Arm Assembly (This group dynamically expands & contracts!)
+    // Angular Iron Cyber Shoulder Pauldron Armor + Glowing Cyber Vent
+    const pauldronPlate = new THREE.Mesh(
+      new THREE.BoxGeometry(0.14, 0.13, 0.17),
+      ironArmPlateMat
+    );
+    pauldronPlate.position.set(side * 0.07, 0.03, 0);
+    pauldronPlate.rotation.z = -side * 0.35;
+    pauldronPlate.castShadow = true;
+    shoulderPivot.add(pauldronPlate);
+
+    const pauldronTrim = new THREE.Mesh(
+      new THREE.BoxGeometry(0.025, 0.08, 0.175),
+      cyberOpticMat
+    );
+    pauldronTrim.position.set(side * 0.135, 0.02, 0);
+    pauldronTrim.rotation.z = -side * 0.35;
+    shoulderPivot.add(pauldronTrim);
+
+    // Telescoping Upper Arm Cyber Assembly (dynamically expands & contracts)
     const telescopeAssembly = new THREE.Group();
     shoulderPivot.add(telescopeAssembly);
 
-    // Segmented corrugated metallic rings (comic tentacle / accordion style)
-    const ringCount = 7;
-    for (let r = 0; r < ringCount; r++) {
-      const ringGroup = new THREE.Group();
-      ringGroup.position.y = -0.07 - r * 0.07;
+    // Central hexagonal iron cyber-spine core
+    const upperSpine = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.052, 0.044, 0.48, 6),
+      darkIronFrameMat
+    );
+    upperSpine.position.y = -0.28;
+    upperSpine.castShadow = true;
+    telescopeAssembly.add(upperSpine);
 
-      // Outer polished steel ribbed ring
-      const ringMesh = new THREE.Mesh(
-        new THREE.TorusGeometry(0.082 - r * 0.003, 0.026, 10, 18),
-        steelBodyMat
+    // Dual parallel hydraulic piston actuators (front & back of upper arm)
+    for (const zOff of [-0.052, 0.052]) {
+      const outerCylinder = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.022, 0.022, 0.24, 8),
+        darkIronFrameMat
       );
-      ringMesh.rotation.x = Math.PI / 2;
-      ringMesh.castShadow = true;
-      ringGroup.add(ringMesh);
+      outerCylinder.position.set(side * 0.025, -0.18, zOff);
+      telescopeAssembly.add(outerCylinder);
 
-      // Inner chrome sliding piston sleeve
-      const sleeveMesh = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.065 - r * 0.002, 0.065 - r * 0.002, 0.07, 12),
-        chromeMat
+      const pistonRod = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.013, 0.013, 0.28, 8),
+        machinedIronMat
       );
-      ringGroup.add(sleeveMesh);
-
-      telescopeAssembly.add(ringGroup);
+      pistonRod.position.set(side * 0.025, -0.34, zOff);
+      telescopeAssembly.add(pistonRod);
     }
 
-    // Flexible Elbow Joint
+    // 3 Layered Iron Armor Cuff Plates along the upper arm
+    for (let r = 0; r < 3; r++) {
+      const yPos = -0.13 - r * 0.14;
+      const armorPlate = new THREE.Mesh(
+        new THREE.BoxGeometry(0.135 - r * 0.008, 0.085, 0.13 - r * 0.006),
+        ironArmPlateMat
+      );
+      armorPlate.position.set(side * 0.01, yPos, 0);
+      armorPlate.castShadow = true;
+      telescopeAssembly.add(armorPlate);
+
+      // Cybernetic glowing LED side strip on outer armor face
+      const ledStrip = new THREE.Mesh(
+        new THREE.BoxGeometry(0.014, 0.055, 0.055),
+        cyberOpticMat
+      );
+      ledStrip.position.set(side * (0.078 - r * 0.004), yPos, 0);
+      telescopeAssembly.add(ledStrip);
+    }
+
+    // Heavy Cybernetic Rotary Elbow Servo
     const elbow = new THREE.Group();
-    elbow.position.y = -0.07 - ringCount * 0.07;
+    elbow.position.y = -0.54;
     telescopeAssembly.add(elbow);
 
-    const elbowHinge = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.085, 0.085, 0.15, 14),
-      darkTitaniumMat
+    const elbowServo = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.082, 0.082, 0.155, 12),
+      darkIronFrameMat
     );
-    elbowHinge.rotation.z = Math.PI / 2;
-    elbow.add(elbowHinge);
+    elbowServo.rotation.z = Math.PI / 2;
+    elbowServo.castShadow = true;
+    elbow.add(elbowServo);
 
-    const elbowCap = new THREE.Mesh(
-      new THREE.SphereGeometry(0.045, 8, 8),
-      brassMat
+    // Outer hexagonal machined iron cap + cyber optic ring
+    const elbowHexCap = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.058, 0.058, 0.175, 6),
+      machinedIronMat
     );
-    elbowCap.position.set(isLeft ? -0.085 : 0.085, 0, 0);
-    elbow.add(elbowCap);
+    elbowHexCap.rotation.z = Math.PI / 2;
+    elbow.add(elbowHexCap);
 
-    // Lower Arm / Forearm Segmented Extension
+    const elbowOpticRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.048, 0.009, 8, 18),
+      cyberOpticMat
+    );
+    elbowOpticRing.rotation.y = Math.PI / 2;
+    elbowOpticRing.position.set(side * 0.089, 0, 0);
+    elbow.add(elbowOpticRing);
+
+    // Angular Cyber Forearm Gauntlet
     const forearmGroup = new THREE.Group();
     elbow.add(forearmGroup);
 
-    const forearmRings = 5;
-    for (let fr = 0; fr < forearmRings; fr++) {
-      const fRing = new THREE.Mesh(
-        new THREE.TorusGeometry(0.075, 0.024, 10, 16),
-        steelBodyMat
-      );
-      fRing.rotation.x = Math.PI / 2;
-      fRing.position.y = -0.05 - fr * 0.065;
-      fRing.castShadow = true;
-      forearmGroup.add(fRing);
+    // Inner dark iron forearm frame
+    const forearmCore = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.056, 0.044, 0.36, 6),
+      darkIronFrameMat
+    );
+    forearmCore.position.y = -0.19;
+    forearmCore.castShadow = true;
+    forearmGroup.add(forearmCore);
 
-      const fSleeve = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.058, 0.058, 0.065, 12),
-        chromeMat
+    // Outer iron armored gauntlet shell
+    const forearmGauntlet = new THREE.Mesh(
+      new THREE.BoxGeometry(0.138, 0.27, 0.128),
+      ironArmPlateMat
+    );
+    forearmGauntlet.position.set(side * 0.014, -0.18, 0);
+    forearmGauntlet.castShadow = true;
+    forearmGroup.add(forearmGauntlet);
+
+    // Machined iron cyber stabilizer fin / heat-sink blade on outer forearm
+    const cyberFin = new THREE.Mesh(
+      new THREE.BoxGeometry(0.025, 0.22, 0.055),
+      machinedIronMat
+    );
+    cyberFin.position.set(side * 0.088, -0.17, -0.02);
+    cyberFin.rotation.z = side * 0.08;
+    forearmGroup.add(cyberFin);
+
+    // Glowing cyber telemetry strip down the rear/outer forearm
+    const forearmConduit = new THREE.Mesh(
+      new THREE.BoxGeometry(0.018, 0.22, 0.024),
+      cyberOpticMat
+    );
+    forearmConduit.position.set(side * 0.082, -0.18, 0.028);
+    forearmGroup.add(forearmConduit);
+
+    // Forearm dual micro-pistons
+    for (const zOff of [-0.045, 0.045]) {
+      const microPiston = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.012, 0.012, 0.28, 6),
+        machinedIronMat
       );
-      fSleeve.position.y = -0.05 - fr * 0.065;
-      forearmGroup.add(fSleeve);
+      microPiston.position.set(-side * 0.035, -0.17, zOff);
+      forearmGroup.add(microPiston);
     }
 
-    // Wrist Pivot
+    // Iron Cyber Wrist Collar
     const wrist = new THREE.Group();
-    wrist.position.y = -0.05 - forearmRings * 0.065;
+    wrist.position.y = -0.37;
     forearmGroup.add(wrist);
 
-    // --- 3-PRONGED TRI-CLAW HAND ---
+    const wristCollar = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.068, 0.064, 0.055, 8),
+      darkIronFrameMat
+    );
+    wrist.add(wristCollar);
+
+    const wristFlange = new THREE.Mesh(
+      new THREE.TorusGeometry(0.068, 0.012, 8, 16),
+      machinedIronMat
+    );
+    wristFlange.rotation.x = Math.PI / 2;
+    wrist.add(wristFlange);
+
+    // --- IRON CYBER-CLAW HAND ---
     const palm = new THREE.Group();
     wrist.add(palm);
 
-    // Circular metallic palm chassis
+    // Hexagonal armored iron palm block
     const palmBase = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.125, 0.135, 0.07, 18),
-      steelBodyMat
+      new THREE.CylinderGeometry(0.118, 0.128, 0.072, 6),
+      ironArmPlateMat
     );
     palmBase.rotation.x = Math.PI / 2;
     palmBase.castShadow = true;
     palm.add(palmBase);
 
-    // Glowing Amber/Yellow Palm Repulsor Eye
-    const palmEye = new THREE.Mesh(
-      new THREE.SphereGeometry(0.046, 14, 14),
-      palmCoreMat
+    // Dark iron backplate guard
+    const palmBackGuard = new THREE.Mesh(
+      new THREE.BoxGeometry(0.14, 0.14, 0.025),
+      darkIronFrameMat
     );
-    palmEye.position.set(0, 0, 0.04);
+    palmBackGuard.position.set(0, 0, -0.036);
+    palm.add(palmBackGuard);
+
+    // Glowing Cyber-Cyan Palm Repulsor Emitter
+    const palmEye = new THREE.Mesh(
+      new THREE.SphereGeometry(0.042, 14, 14),
+      cyberOpticMat
+    );
+    palmEye.position.set(0, 0, 0.038);
     palm.add(palmEye);
 
     const eyeBezel = new THREE.Mesh(
-      new THREE.TorusGeometry(0.052, 0.012, 8, 18),
-      brassMat
+      new THREE.TorusGeometry(0.050, 0.012, 8, 6),
+      darkIronFrameMat
     );
-    eyeBezel.position.set(0, 0, 0.04);
+    eyeBezel.position.set(0, 0, 0.038);
     palm.add(eyeBezel);
 
-    // 3 Curved Mechanical Claw Fingers at 120° angles (0, 2π/3, 4π/3)
+    // 3 Angular Iron Cyber Fingers / Claws at 120° angles
     const claws: THREE.Group[] = [];
     for (let c = 0; c < 3; c++) {
       const angle = (c * Math.PI * 2) / 3;
       const clawRoot = new THREE.Group();
       clawRoot.position.set(
-        Math.cos(angle) * 0.115,
-        Math.sin(angle) * 0.115,
+        Math.cos(angle) * 0.112,
+        Math.sin(angle) * 0.112,
         0
       );
       clawRoot.rotation.z = angle - Math.PI / 2;
 
-      // Knuckle hinge
+      // child[0]: Dark iron servo knuckle
       const knuckle = new THREE.Mesh(
-        new THREE.SphereGeometry(0.032, 8, 8),
-        darkTitaniumMat
+        new THREE.CylinderGeometry(0.028, 0.028, 0.046, 6),
+        darkIronFrameMat
       );
+      knuckle.rotation.z = Math.PI / 2;
       clawRoot.add(knuckle);
 
-      // Curved Claw Segment 1
+      // child[1]: Angular iron cyber phalanx segment
       const clawSeg1 = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.028, 0.022, 0.12, 10),
-        clawMetalMat
+        new THREE.BoxGeometry(0.042, 0.115, 0.036),
+        ironArmPlateMat
       );
       clawSeg1.position.set(0, 0.06, 0.018);
       clawSeg1.rotation.x = 0.42;
       clawSeg1.castShadow = true;
       clawRoot.add(clawSeg1);
 
-      // Claw Hinge 2
+      // child[2]: Claw Hinge 2 (exact index 2 expected by updateAnimation!)
       const clawHinge2 = new THREE.Group();
       clawHinge2.position.set(0, 0.12, 0.045);
       clawRoot.add(clawHinge2);
 
-      // Curved Claw Tip
+      // Joint pin inside hinge
+      const jointPin = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.018, 0.018, 0.044, 6),
+        darkIronFrameMat
+      );
+      jointPin.rotation.z = Math.PI / 2;
+      clawHinge2.add(jointPin);
+
+      // Tapered 4-sided machined iron cyber blade claw tip
       const clawTip = new THREE.Mesh(
-        new THREE.ConeGeometry(0.024, 0.11, 8),
-        chromeMat
+        new THREE.ConeGeometry(0.024, 0.115, 4),
+        machinedIronMat
       );
       clawTip.position.set(0, 0.055, -0.01);
       clawTip.rotation.x = -0.52;
+      clawTip.rotation.y = Math.PI / 4;
       clawHinge2.add(clawTip);
 
       palm.add(clawRoot);
@@ -619,7 +841,13 @@ export function createAdventurer(): AdventurerModel {
   // --- "NOT SO SYNC MOVES" ASYMMETRIC LOCOMOTIVE PHYSICS ---
   // Desynchronized phase offsets, uneven reach strides, staggered claw articulation,
   // and organic recoil physics give the robot a dynamic, imperfect, living mechanical gait!
-  const updateAnimation = (time: number, speed: number, state: 'run' | 'jump' | 'slide' | 'fall') => {
+  const updateAnimation = (
+    time: number,
+    speed: number,
+    state: 'run' | 'jump' | 'slide' | 'fall',
+    landingImpact: number = 0,
+    verticalVel: number = 0
+  ) => {
     if (state === 'run') {
       const runFreq = speed * 1.45;
       const strideTime = time * runFreq;
@@ -634,11 +862,14 @@ export function createAdventurer(): AdventurerModel {
       const swingL = Math.sin(phaseL);
       const swingR = Math.sin(phaseR) * 0.92 + Math.cos(phaseR * 2) * 0.14;
 
+      // Landing squash-and-rebound curve (peaks quickly on touchdown, rebounds subtly)
+      const squash = landingImpact > 0 ? Math.sin(landingImpact * Math.PI * 0.65) : 0;
+      const crouchDrop = landingImpact * 0.30;
+
       // === DESYNCHRONIZED EXPANSION AS MOVE MECHANIC ===
-      // Left arm expands with a wide, elastic stretch
-      const expandL = 0.86 + Math.max(0, swingL) * 0.74;
-      // Right arm expands with a snappier, stepped extension
-      const expandR = 0.89 + Math.max(0, swingR) * 0.64 + (Math.sin(phaseR * 3) > 0.5 ? 0.06 : 0);
+      const armCompress = 1 - landingImpact * 0.24;
+      const expandL = (0.86 + Math.max(0, swingL) * 0.74) * armCompress;
+      const expandR = (0.89 + Math.max(0, swingR) * 0.64 + (Math.sin(phaseR * 3) > 0.5 ? 0.06 : 0)) * armCompress;
 
       leftArmObj.telescopeAssembly.scale.set(
         1 / Math.sqrt(expandL),
@@ -651,82 +882,83 @@ export function createAdventurer(): AdventurerModel {
         1 / Math.sqrt(expandR)
       );
 
-      // Asymmetric Shoulder Reach: Left reaches wider, Right pushes more forward
-      leftArmObj.shoulderPivot.rotation.x = swingL * 0.88;
-      rightArmObj.shoulderPivot.rotation.x = swingR * 0.82;
+      // Asymmetric Shoulder Reach + landing brace forward
+      leftArmObj.shoulderPivot.rotation.x = swingL * 0.88 * (1 - landingImpact * 0.5) + landingImpact * 0.45;
+      rightArmObj.shoulderPivot.rotation.x = swingR * 0.82 * (1 - landingImpact * 0.5) + landingImpact * 0.38;
 
-      // Asymmetric lateral arm flares (uneven stance width)
-      leftArmObj.shoulderPivot.rotation.z = -0.18 - Math.max(0, swingL) * 0.16;
-      rightArmObj.shoulderPivot.rotation.z = 0.12 + Math.max(0, swingR) * 0.10;
+      // Flare arms outward on landing to stabilize impact
+      leftArmObj.shoulderPivot.rotation.z = -0.18 - Math.max(0, swingL) * 0.16 - landingImpact * 0.42;
+      rightArmObj.shoulderPivot.rotation.z = 0.12 + Math.max(0, swingR) * 0.10 + landingImpact * 0.42;
 
-      // Desynchronized Elbow Articulation:
-      // Left elbow bends deep during high recovery; Right elbow snaps forward with a tighter angle
-      leftArmObj.elbow.rotation.x = -0.42 - Math.max(0, swingL) * 0.82 + Math.min(0, swingL) * 0.32;
-      rightArmObj.elbow.rotation.x = -0.32 - Math.max(0, swingR) * 0.68 + Math.min(0, swingR) * 0.22;
+      // Desynchronized Elbow Articulation + deep landing shock bend
+      leftArmObj.elbow.rotation.x = -0.42 - Math.max(0, swingL) * 0.82 + Math.min(0, swingL) * 0.32 - landingImpact * 0.65;
+      rightArmObj.elbow.rotation.x = -0.32 - Math.max(0, swingR) * 0.68 + Math.min(0, swingR) * 0.22 - landingImpact * 0.58;
 
-      // Wrist Orientation (adjusting for independent elbow & shoulder angles)
+      // Wrist Orientation
       leftArmObj.wrist.rotation.x = -leftArmObj.shoulderPivot.rotation.x - leftArmObj.elbow.rotation.x;
       rightArmObj.wrist.rotation.x = -rightArmObj.shoulderPivot.rotation.x - rightArmObj.elbow.rotation.x;
 
-      // Tri-Claw Desynchronized Articulation:
-      // Independent finger wave: Claws don't open and close simultaneously!
-      const plantL = Math.max(0, -swingL);
-      const plantR = Math.max(0, -swingR);
-
       leftArmObj.claws.forEach((claw, idx) => {
-        // Progressive wave across left claws
         const clawDelay = idx * 0.14;
         const delayedPlant = Math.max(0, -Math.sin(phaseL - clawDelay));
         const hinge = claw.children[2];
-        if (hinge) hinge.rotation.x = -0.52 + delayedPlant * 0.48;
-        claw.rotation.x = delayedPlant * 0.32;
+        if (hinge) hinge.rotation.x = -0.52 + delayedPlant * 0.48 + landingImpact * 0.35;
+        claw.rotation.x = delayedPlant * 0.32 + landingImpact * 0.25;
       });
 
       rightArmObj.claws.forEach((claw, idx) => {
-        // Quick snap grip on right claws
         const delayedPlant = Math.max(0, -Math.sin(phaseR - (2 - idx) * 0.12));
         const hinge = claw.children[2];
-        if (hinge) hinge.rotation.x = -0.50 + delayedPlant * 0.44;
-        claw.rotation.x = delayedPlant * 0.28;
+        if (hinge) hinge.rotation.x = -0.50 + delayedPlant * 0.44 + landingImpact * 0.35;
+        claw.rotation.x = delayedPlant * 0.28 + landingImpact * 0.25;
       });
 
-      // Asymmetric Chassis Vaulting & Weight Transfer:
-      // The compact drone body bobs and rolls with the uneven ground strikes
-      const vaultBob = Math.abs(Math.sin(phaseL)) * 0.12 + Math.abs(Math.sin(phaseR)) * 0.06;
-      chassis.position.y = 0.95 + vaultBob;
-      headGroup.position.y = 1.18 + vaultBob;
+      // Asymmetric Chassis Vaulting & Landing Compression
+      const vaultBob = (Math.abs(Math.sin(phaseL)) * 0.12 + Math.abs(Math.sin(phaseR)) * 0.06) * (1 - landingImpact);
+      chassis.position.y = 0.95 + vaultBob - crouchDrop;
+      headGroup.position.y = 1.18 + vaultBob - crouchDrop * 1.08;
 
-      // Staggered lateral body roll
-      chassis.rotation.z = Math.sin(phaseL) * 0.11 - Math.sin(phaseR) * 0.05;
-      chassis.rotation.y = Math.sin(strideTime * 1.1) * 0.12;
-      headGroup.rotation.z = -chassis.rotation.z * 0.5 + Math.sin(time * 4) * 0.03; // organic head tilt
+      // Staggered lateral body roll + subtle forward impact dip
+      chassis.rotation.z = (Math.sin(phaseL) * 0.11 - Math.sin(phaseR) * 0.05) * (1 - landingImpact * 0.6);
+      chassis.rotation.y = Math.sin(strideTime * 1.1) * 0.12 * (1 - landingImpact * 0.7);
+      headGroup.rotation.z = -chassis.rotation.z * 0.5 + Math.sin(time * 4) * 0.03;
+      headGroup.rotation.x = landingImpact * 0.22;
 
-      // Reactor core energy pulse
-      chestCoreLight.intensity = 2.0 + Math.sin(time * 11) * 0.7;
-      chestCore.scale.setScalar(1 + Math.sin(time * 11) * 0.08);
+      // Reactor core energy surge on landing
+      chestCoreLight.intensity = 2.0 + Math.sin(time * 11) * 0.7 + landingImpact * 3.5;
+      chestCore.scale.setScalar(1 + Math.sin(time * 11) * 0.08 + landingImpact * 0.22);
 
-      group.rotation.x = 0.12;
-      group.scale.set(1, 1, 1);
+      group.rotation.x = 0.12 + landingImpact * 0.18;
+      group.position.y = -crouchDrop * 0.18;
+      const scaleY = 1 - squash * 0.22;
+      const scaleXZ = 1 + squash * 0.14;
+      group.scale.set(scaleXZ, scaleY, scaleXZ);
     } else if (state === 'jump') {
-      // Explosive asymmetric launch
-      const jumpExpand = 1.48;
+      // Dynamic arc posture: rising stretches upward, descending braces for landing
+      const fallFactor = Math.max(0, Math.min(1, -verticalVel / 10));
+      const jumpExpand = 1.48 - fallFactor * 0.22;
       leftArmObj.telescopeAssembly.scale.set(0.9, jumpExpand, 0.9);
       rightArmObj.telescopeAssembly.scale.set(0.88, jumpExpand * 0.96, 0.88);
 
-      leftArmObj.shoulderPivot.rotation.x = -1.18;
-      rightArmObj.shoulderPivot.rotation.x = -1.10;
-      leftArmObj.elbow.rotation.x = -0.88;
-      rightArmObj.elbow.rotation.x = -0.78;
+      leftArmObj.shoulderPivot.rotation.x = -1.18 + fallFactor * 0.85;
+      rightArmObj.shoulderPivot.rotation.x = -1.10 + fallFactor * 0.82;
+      leftArmObj.shoulderPivot.rotation.z = -0.15 - fallFactor * 0.28;
+      rightArmObj.shoulderPivot.rotation.z = 0.15 + fallFactor * 0.28;
+      leftArmObj.elbow.rotation.x = -0.88 - fallFactor * 0.25;
+      rightArmObj.elbow.rotation.x = -0.78 - fallFactor * 0.25;
       leftArmObj.wrist.rotation.x = 0.82;
       rightArmObj.wrist.rotation.x = 0.76;
 
-      leftArmObj.claws.forEach((c) => { c.rotation.x = 0.65; });
-      rightArmObj.claws.forEach((c) => { c.rotation.x = 0.55; });
+      leftArmObj.claws.forEach((c) => { c.rotation.x = 0.65 - fallFactor * 0.35; });
+      rightArmObj.claws.forEach((c) => { c.rotation.x = 0.55 - fallFactor * 0.35; });
 
       chassis.position.y = 0.98;
       headGroup.position.y = 1.21;
-      group.rotation.x = -0.15;
-      group.scale.set(0.96, 1.06, 0.96);
+      headGroup.rotation.x = fallFactor * 0.12;
+      group.rotation.x = -0.15 + fallFactor * 0.22;
+      const stretchY = 1.07 - fallFactor * 0.08;
+      const stretchXZ = 0.95 + fallFactor * 0.05;
+      group.scale.set(stretchXZ, stretchY, stretchXZ);
     } else if (state === 'slide') {
       // High-speed cyber sled with slight staggered lead
       const slideExpandL = 1.68;
@@ -736,6 +968,8 @@ export function createAdventurer(): AdventurerModel {
 
       leftArmObj.shoulderPivot.rotation.x = 1.15;
       rightArmObj.shoulderPivot.rotation.x = 1.08;
+      leftArmObj.shoulderPivot.rotation.z = -0.15;
+      rightArmObj.shoulderPivot.rotation.z = 0.15;
       leftArmObj.elbow.rotation.x = -0.20;
       rightArmObj.elbow.rotation.x = -0.24;
       leftArmObj.wrist.rotation.x = -0.92;
@@ -746,6 +980,7 @@ export function createAdventurer(): AdventurerModel {
 
       chassis.position.y = 0.44;
       headGroup.position.y = 0.62;
+      headGroup.rotation.x = 0;
       group.rotation.x = -0.50;
       group.position.y = -0.42;
       group.scale.set(1.15, 0.65, 1.25);
@@ -808,141 +1043,7 @@ export function createAdventurer(): AdventurerModel {
   };
 }
 
-// 2. CHASING DEMON SPIDER (Matching stylized cel-shaded aesthetic)
-export function createChasingSpider(): SpiderModel {
-  const group = new THREE.Group();
-  const toonGradient = createToonGradientMap();
-
-  const chitinMat = new THREE.MeshToonMaterial({
-    color: 0x1f1616,
-    gradientMap: toonGradient,
-  });
-  const abdomenMat = new THREE.MeshToonMaterial({
-    color: 0x3d0e0e,
-    gradientMap: toonGradient,
-  });
-  const glowEyeMat = new THREE.MeshStandardMaterial({
-    color: 0xff1515,
-    emissive: 0xff0000,
-    emissiveIntensity: 1.8,
-  });
-  const fangMat = new THREE.MeshToonMaterial({
-    color: 0xdedede,
-    gradientMap: toonGradient,
-  });
-
-  // Cephalothorax
-  const thorax = new THREE.Mesh(new THREE.SphereGeometry(0.48, 14, 12), chitinMat);
-  thorax.scale.set(1, 0.7, 1.2);
-  thorax.position.y = 0.55;
-  thorax.castShadow = true;
-  group.add(thorax);
-
-  // Large bulbous abdomen
-  const abdomen = new THREE.Mesh(new THREE.SphereGeometry(0.8, 16, 14), abdomenMat);
-  abdomen.scale.set(1.1, 0.95, 1.5);
-  abdomen.position.set(0, 0.75, -1.2);
-  abdomen.castShadow = true;
-  group.add(abdomen);
-
-  // Glowing demonic red eyes
-  const eyeGeom = new THREE.SphereGeometry(0.065, 8, 8);
-  const eyeOffsets = [
-    [-0.14, 0.62, 0.55],
-    [0.14, 0.62, 0.55],
-    [-0.06, 0.68, 0.57],
-    [0.06, 0.68, 0.57],
-    [-0.22, 0.56, 0.48],
-    [0.22, 0.56, 0.48],
-  ];
-  eyeOffsets.forEach(([ex, ey, ez]) => {
-    const eye = new THREE.Mesh(eyeGeom, glowEyeMat);
-    eye.position.set(ex, ey, ez);
-    group.add(eye);
-  });
-
-  // Snapping Mandibles
-  const mandibles = new THREE.Group();
-  mandibles.position.set(0, 0.42, 0.6);
-
-  const leftFang = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.35, 8), fangMat);
-  leftFang.rotation.x = Math.PI * 0.7;
-  leftFang.rotation.z = -0.25;
-  leftFang.position.set(-0.16, 0, 0.1);
-
-  const rightFang = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.35, 8), fangMat);
-  rightFang.rotation.x = Math.PI * 0.7;
-  rightFang.rotation.z = 0.25;
-  rightFang.position.set(0.16, 0, 0.1);
-
-  mandibles.add(leftFang);
-  mandibles.add(rightFang);
-  group.add(mandibles);
-
-  // 8 jointed creepy arachnid legs
-  const legs: THREE.Group[] = [];
-  for (let i = 0; i < 8; i++) {
-    const isLeft = i < 4;
-    const legIdx = i % 4;
-    const legRoot = new THREE.Group();
-
-    const zPos = 0.3 - legIdx * 0.35;
-    legRoot.position.set(isLeft ? -0.4 : 0.4, 0.52, zPos);
-
-    const upperLeg = new THREE.Group();
-    const upperMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.05, 0.75, 8), chitinMat);
-    upperMesh.position.y = 0.35;
-    upperMesh.rotation.z = isLeft ? 0.6 : -0.6;
-    upperLeg.add(upperMesh);
-    legRoot.add(upperLeg);
-
-    const lowerLeg = new THREE.Group();
-    lowerLeg.position.set(isLeft ? -0.45 : 0.45, 0.7, 0);
-    const lowerMesh = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.95, 8), chitinMat);
-    lowerMesh.position.y = -0.45;
-    lowerMesh.rotation.z = isLeft ? -0.4 : 0.4;
-    lowerLeg.add(lowerMesh);
-    upperLeg.add(lowerLeg);
-
-    const baseAngleY = (legIdx - 1.5) * 0.35 * (isLeft ? 1 : -1);
-    legRoot.rotation.y = baseAngleY;
-
-    group.add(legRoot);
-    legs.push(legRoot);
-  }
-
-  const updateAnimation = (time: number, speed: number, attackLunge: boolean) => {
-    const legSpeed = speed * 2.2;
-    for (let i = 0; i < legs.length; i++) {
-      const leg = legs[i];
-      const phase = (i % 2 === 0 ? 0 : Math.PI) + (Math.floor(i / 2) * 0.7);
-      const wave = Math.sin(time * legSpeed + phase);
-      leg.rotation.z = wave * 0.3;
-      leg.rotation.x = Math.cos(time * legSpeed + phase) * 0.25;
-    }
-
-    abdomen.rotation.x = Math.sin(time * 5) * 0.08;
-    mandibles.scale.setScalar(1 + Math.sin(time * 8) * 0.2);
-
-    if (attackLunge) {
-      mandibles.position.z = 0.8;
-      group.scale.set(1.2, 1.2, 1.2);
-    } else {
-      mandibles.position.z = 0.6;
-      group.scale.set(1, 1, 1);
-    }
-  };
-
-  return {
-    group,
-    legs,
-    mandibles,
-    abdomen,
-    updateAnimation,
-  };
-}
-
-// 3. OBSTACLES: Market Crash Dip Hurdle (Tap/Click Jump Over), Margin Call Laser Arch (Slide Under)
+// 2. OBSTACLES: Market Crash Dip Hurdle (Tap/Click Jump Over), Margin Call Laser Arch (Slide Under)
 export function createFallenTreeObstacle(): THREE.Group {
   const group = new THREE.Group();
   const crashTexture = createCrashBarrierTexture();
@@ -1003,11 +1104,6 @@ export function createFallenTreeObstacle(): THREE.Group {
   beaconR.position.set(1.8, 0.88, 0);
   group.add(beaconR);
 
-  // Red neon underglow beam
-  const light = new THREE.PointLight(0xff1100, 1.4, 4);
-  light.position.set(0, 0.2, 0);
-  group.add(light);
-
   return group;
 }
 
@@ -1065,14 +1161,25 @@ export function createSlideGateObstacle(): THREE.Group {
 // 4. GOLD BULLION DOLLAR COIN MODEL ($)
 export function createGoldCoin(): THREE.Mesh {
   const coinTex = createCoinTexture();
-  const coinMat = new THREE.MeshStandardMaterial({
+  const faceMat = new THREE.MeshStandardMaterial({
     map: coinTex,
-    color: 0xfff066,
-    metalness: 0.88,
-    roughness: 0.18,
+    color: 0xffd700,
+    emissive: 0xb4690e,
+    emissiveIntensity: 0.45,
+    metalness: 0.9,
+    roughness: 0.16,
+    envMapIntensity: 1.8,
   });
-  const geom = new THREE.CylinderGeometry(0.38, 0.38, 0.08, 24);
-  const coin = new THREE.Mesh(geom, coinMat);
+  const edgeMat = new THREE.MeshStandardMaterial({
+    color: 0xffc400,
+    emissive: 0xa16207,
+    emissiveIntensity: 0.4,
+    metalness: 0.94,
+    roughness: 0.14,
+    envMapIntensity: 1.8,
+  });
+  const geom = new THREE.CylinderGeometry(0.38, 0.38, 0.09, 28);
+  const coin = new THREE.Mesh(geom, [edgeMat, faceMat, faceMat]);
   coin.rotation.x = Math.PI / 2;
   coin.position.y = 0.6;
   coin.castShadow = true;

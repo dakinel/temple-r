@@ -39,7 +39,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
   const avatarUrl = getDiceBearAvatarUrl(adventurer.seed);
 
   return (
-    <div className="absolute inset-0 z-40 bg-slate-950/85 backdrop-blur-xs flex items-center justify-center p-4 select-none">
+    <div className="absolute inset-0 z-40 bg-slate-950/65 flex items-center justify-center p-4 select-none">
       <div className="max-w-md w-full bg-slate-900 border-2 border-rose-600/70 rounded-3xl p-6 sm:p-7 shadow-2xl text-center relative overflow-hidden">
         {/* Header with Trader Avatar and Bear Icon */}
         <div className="flex items-center justify-center gap-3 mb-3">
@@ -90,7 +90,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
         {/* Stats Grid */}
         <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 mb-5 space-y-2.5">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-slate-400">Total Profit:</span>
+            <span className="text-slate-400">Total Score:</span>
             <span className="text-xl font-black text-emerald-400 font-mono tabular-nums">
               ${stats.score.toLocaleString()}
             </span>
@@ -104,14 +104,14 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
           </div>
           <div className="h-px bg-slate-800" />
           <div className="flex items-center justify-between text-sm">
-            <span className="text-slate-400">Bullion Gathered:</span>
+            <span className="text-slate-400">Coins Collected:</span>
             <span className="text-base font-bold text-amber-300 font-mono tabular-nums">
-              ${stats.coins}
+              {stats.coins}
             </span>
           </div>
           <div className="h-px bg-slate-800" />
           <div className="flex items-center justify-between text-sm">
-            <span className="text-slate-400">Best All-Time:</span>
+            <span className="text-slate-400">Best Score:</span>
             <span className="text-xs font-semibold text-slate-300 font-mono tabular-nums">
               ${highScore.toLocaleString()}
             </span>

@@ -6,9 +6,9 @@ import { GameOverModal } from './components/GameOverModal';
 import { AdventurerSelector } from './components/AdventurerSelector';
 import { AdventurerProfile, ADVENTURER_ROSTER } from './game/adventurers';
 import { sound } from './game/audio';
-import { MARKET_QUERIES, MarketQuery } from './game/queries';
+import { MARKET_QUERIES, MarketQuery, fetchLiveMarketQueries } from './game/queries';
 
-const STARTING_CAPITAL = 100000;
+const STARTING_CAPITAL = 0;
 
 export default function App() {
   const canvasMountRef = useRef<HTMLDivElement>(null);
@@ -27,16 +27,23 @@ export default function App() {
   // Game UI State
   const [gamePhase, setGamePhase] = useState<'start' | 'playing' | 'gameover'>('start');
   const [isPaused, setIsPaused] = useState(false);
-  const [stats, setStats] = useState({ distance: 0, coins: 0, score: 0 });
+  const [stats, setStats] = useState<{
+    distance: number;
+    coins: number;
+    score: number;
+    reason?: string;
+  }>({ distance: 0, coins: 0, score: 0 });
   const [highScore, setHighScore] = useState<number>(() => {
-    const saved = localStorage.getItem('templerun_3d_highscore');
-    return saved ? parseInt(saved, 10) : 150000;
+    const saved = localStorage.getItem('templerun_3d_highscore_v3');
+    return saved ? parseInt(saved, 10) : 50;
   });
   const [isNewHigh, setIsNewHigh] = useState(false);
   const [powerupMessage, setPowerupMessage] = useState<string | null>(null);
   const [cameraMode, setCameraMode] = useState<'rear' | 'front' | 'side'>('rear');
 
   // Stock Market Trading Screen & Decision State
+  const [marketQueries, setMarketQueries] = useState<MarketQuery[]>(MARKET_QUERIES);
+  const [activeForkQuery, setActiveForkQuery] = useState<MarketQuery | null>(null);
   const [queryIndex, setQueryIndex] = useState(0);
   const [portfolioValue, setPortfolioValue] = useState(STARTING_CAPITAL);
   const [streak, setStreak] = useState(0);
@@ -50,8 +57,11 @@ export default function App() {
     Array<{ ticker: string; action: string; profit: number }>
   >([]);
 
-  const queryIndexRef = useRef(queryIndex);
-  queryIndexRef.current = queryIndex;
+  const marketQueriesRef = useRef(marketQueries);
+  marketQueriesRef.current = marketQueries;
+  const adventurerRef = useRef(adventurer);
+  adventurerRef.current = adventurer;
+
   const handleForkDecision = useCallback((result: {
     survived: boolean;
     profit: number;
@@ -61,23 +71,7 @@ export default function App() {
   }) => {
     if (result.survived) {
       setStreak((s) => s + 1);
-      setPortfolioValue((prev) => {
-        const updated = prev + result.profit;
-        setHighScore((h) => {
-          if (updated > h) {
-            localStorage.setItem('templerun_3d_highscore', updated.toString());
-            setIsNewHigh(true);
-            return updated;
-          }
-          return h;
-        });
-        return updated;
-      });
-
-      setStats((prev) => ({
-        ...prev,
-        score: Math.max(0, prev.score + result.profit),
-      }));
+      setPortfolioValue((prev) => prev + result.profit);
 
       setDecisionFeedback({
         text: result.feedback,
@@ -98,7 +92,8 @@ export default function App() {
       ]);
 
       // Advance to next stock query
-      setQueryIndex((prev) => (prev + 1) % MARKET_QUERIES.length);
+      setActiveForkQuery(null);
+      setQueryIndex((prev) => (prev + 1) % Math.max(1, marketQueriesRef.current.length));
     } else {
       setStreak(0);
       setPortfolioValue((prev) => Math.max(0, prev + result.profit));
@@ -110,13 +105,16 @@ export default function App() {
     }
   }, []);
 
-  // Initialize GameEngine once
+  const handleForkDecisionRef = useRef(handleForkDecision);
+  handleForkDecisionRef.current = handleForkDecision;
+
+  // Initialize GameEngine once on mount
   useEffect(() => {
     if (!canvasMountRef.current) return;
 
     const engine = new GameEngine(canvasMountRef.current, {
       onScoreUpdate: (newStats) => {
-        setStats(newStats);
+        setStats((prev) => ({ ...prev, ...newStats }));
         if (engineRef.current) {
           const p = engineRef.current.player;
           setCurrentLaneX(p.currentLaneX);
@@ -124,9 +122,10 @@ export default function App() {
       },
       onForkApproaching: (fork) => {
         setQueryIndex(fork.queryIndex);
+        setActiveForkQuery(fork.query);
       },
       onForkDecision: (result) => {
-        handleForkDecision(result);
+        handleForkDecisionRef.current(result);
       },
       onGameOver: (finalStats) => {
         setGamePhase('gameover');
@@ -135,7 +134,7 @@ export default function App() {
 
         setHighScore((prevHigh) => {
           if (finalStats.score > prevHigh) {
-            localStorage.setItem('templerun_3d_highscore', finalStats.score.toString());
+            localStorage.setItem('templerun_3d_highscore_v3', finalStats.score.toString());
             setIsNewHigh(true);
             return finalStats.score;
           }
@@ -149,14 +148,23 @@ export default function App() {
       },
     });
 
-    engine.setAdventurer(adventurer);
+    engine.setAdventurer(adventurerRef.current);
+    engine.setMarketQueries(marketQueriesRef.current);
     engineRef.current = engine;
 
+    let cancelled = false;
+    fetchLiveMarketQueries().then(({ queries }) => {
+      if (cancelled || queries.length === 0) return;
+      setMarketQueries(queries);
+      engine.setMarketQueries(queries);
+    });
+
     return () => {
+      cancelled = true;
       engine.dispose();
       engineRef.current = null;
     };
-  }, [handleForkDecision, adventurer]);
+  }, []);
 
   const handleSelectAdventurer = (profile: AdventurerProfile) => {
     setAdventurer(profile);
@@ -347,6 +355,7 @@ export default function App() {
     setStreak(0);
     setTradeHistory([]);
     setDecisionFeedback(null);
+    setActiveForkQuery(null);
     setQueryIndex(0);
     setIsNewHigh(false);
     setIsPaused(false);
@@ -370,6 +379,7 @@ export default function App() {
     setStreak(0);
     setTradeHistory([]);
     setDecisionFeedback(null);
+    setActiveForkQuery(null);
     setQueryIndex(0);
     setIsNewHigh(false);
     setIsPaused(false);
@@ -384,7 +394,10 @@ export default function App() {
     }
   };
 
-  const currentQ = MARKET_QUERIES[queryIndex];
+  const currentQ =
+    activeForkQuery ??
+    marketQueries[queryIndex % marketQueries.length] ??
+    MARKET_QUERIES[0];
 
   return (
     <div
@@ -399,7 +412,7 @@ export default function App() {
       {/* In-Game HUD & In-Front Trading Screen */}
       {gamePhase === 'playing' && (
         <GameHUD
-          score={portfolioValue - STARTING_CAPITAL}
+          score={stats.score}
           coins={stats.coins}
           distance={stats.distance}
           isPaused={isPaused}
@@ -437,6 +450,7 @@ export default function App() {
         <StartScreen
           highScore={highScore}
           adventurer={adventurer}
+          marketQueries={marketQueries}
           onOpenAdventurerSelect={() => setIsAdventurerSelectOpen(true)}
           onStartGame={startGame}
         />
@@ -448,7 +462,8 @@ export default function App() {
           stats={{
             distance: stats.distance,
             coins: stats.coins,
-            score: portfolioValue,
+            score: stats.score,
+            reason: stats.reason,
           }}
           highScore={highScore}
           isNewHigh={isNewHigh}
