@@ -2,12 +2,11 @@ import * as THREE from 'three';
 import { createCandlestickTexture } from './textures';
 import {
   createFallenTreeObstacle,
-  createSlideGateObstacle,
   createGoldCoin,
 } from './models';
 import { MARKET_QUERIES, MarketQuery } from './queries';
 
-export type ObstacleType = 'none' | 'crash_dip' | 'margin_call';
+export type ObstacleType = 'none' | 'crash_dip';
 
 export interface CoinInstance {
   mesh: THREE.Mesh;
@@ -18,7 +17,7 @@ export interface CoinInstance {
 
 export interface ObstacleInstance {
   group: THREE.Group;
-  type: 'tree' | 'gate';
+  type: 'tree';
   worldPos: THREE.Vector3;
   lane: number;
   boundingSphere: THREE.Sphere;
@@ -45,193 +44,6 @@ export interface TrackSegment {
   coins: CoinInstance[];
   obstacles: ObstacleInstance[];
   fork?: ForkInstance;
-}
-
-/**
- * Procedural high-resolution End-of-Tunnel Query Board Canvas Texture.
- * Renders the Wall Street query as a massive, high-tech terminal wall visible
- * at the vanishing point / end of the incoming tunnel.
- */
-function createEndOfTunnelBillboardTexture(query: MarketQuery): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 1024;
-  canvas.height = 576;
-  const ctx = canvas.getContext('2d')!;
-
-  // 1. Deep Carbon Background
-  ctx.fillStyle = '#060a0f';
-  ctx.fillRect(0, 0, 1024, 576);
-
-  // Digital Grid lines
-  ctx.strokeStyle = 'rgba(16, 185, 129, 0.08)';
-  ctx.lineWidth = 1;
-  for (let x = 0; x < 1024; x += 32) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, 576);
-    ctx.stroke();
-  }
-  for (let y = 0; y < 576; y += 32) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(1024, y);
-    ctx.stroke();
-  }
-
-  // 2. High-Tech Bezel / Glowing Border
-  ctx.strokeStyle = '#10b981';
-  ctx.lineWidth = 6;
-  ctx.strokeRect(12, 12, 1000, 552);
-
-  ctx.strokeStyle = 'rgba(52, 211, 153, 0.5)';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(18, 18, 988, 540);
-
-  // Corner Accents
-  ctx.fillStyle = '#34d399';
-  const cornerSize = 20;
-  ctx.fillRect(12, 12, cornerSize, 6);
-  ctx.fillRect(12, 12, 6, cornerSize);
-  ctx.fillRect(1012 - cornerSize, 12, cornerSize, 6);
-  ctx.fillRect(1006, 12, 6, cornerSize);
-  ctx.fillRect(12, 558, cornerSize, 6);
-  ctx.fillRect(12, 564 - cornerSize, 6, cornerSize);
-  ctx.fillRect(1012 - cornerSize, 558, cornerSize, 6);
-  ctx.fillRect(1006, 564 - cornerSize, 6, cornerSize);
-
-  // 3. Top Status Ribbon
-  ctx.fillStyle = 'rgba(6, 78, 59, 0.85)';
-  ctx.fillRect(24, 24, 976, 44);
-
-  ctx.font = 'bold 16px "Courier New", monospace';
-  ctx.fillStyle = '#6ee7b7';
-  ctx.textAlign = 'left';
-  ctx.fillText('LIVE WALL STREET TERMINAL // FORK JUNCTION AHEAD', 38, 52);
-
-  ctx.textAlign = 'right';
-  ctx.fillStyle = '#34d399';
-  ctx.fillText('REAL-TIME MARKET FEED ● CONNECTED', 980, 52);
-
-  // 4. Stock Ticker & Category Bar
-  const isUp = !query.change.startsWith('-');
-  const trendColor = isUp ? '#34d399' : '#f87171';
-
-  // Ticker badge
-  ctx.fillStyle = '#1e293b';
-  ctx.fillRect(40, 84, 180, 48);
-  ctx.strokeStyle = trendColor;
-  ctx.lineWidth = 2;
-  ctx.strokeRect(40, 84, 180, 48);
-
-  ctx.font = '900 30px system-ui, sans-serif';
-  ctx.fillStyle = '#ffffff';
-  ctx.textAlign = 'center';
-  ctx.fillText(query.ticker, 130, 120);
-
-  // Price & Change
-  ctx.font = 'bold 26px system-ui, sans-serif';
-  ctx.fillStyle = '#ffffff';
-  ctx.textAlign = 'left';
-  ctx.fillText(query.price, 240, 120);
-
-  ctx.fillStyle = trendColor;
-  ctx.fillText(query.change, 380, 120);
-
-  // Category Tag
-  ctx.fillStyle = 'rgba(56, 189, 248, 0.2)';
-  ctx.fillRect(520, 88, 160, 40);
-  ctx.strokeStyle = '#38bdf8';
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(520, 88, 160, 40);
-
-  ctx.font = 'bold 15px monospace';
-  ctx.fillStyle = '#7dd3fc';
-  ctx.textAlign = 'center';
-  ctx.fillText(query.category, 600, 114);
-
-  // Profit Stake
-  ctx.fillStyle = '#fbbf24';
-  ctx.textAlign = 'right';
-  ctx.font = 'bold 22px system-ui, sans-serif';
-  ctx.fillText(`POTENTIAL P&L: +$${query.profit.toLocaleString()}`, 980, 118);
-
-  // 5. Headline Box
-  ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
-  ctx.fillRect(40, 150, 944, 56);
-  ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(40, 150, 944, 56);
-
-  ctx.font = 'bold 22px system-ui, sans-serif';
-  ctx.fillStyle = '#f8fafc';
-  ctx.textAlign = 'left';
-  ctx.fillText(`HEADLINE: ${query.headline}`, 56, 186);
-
-  // 6. Question Banner
-  ctx.fillStyle = 'rgba(12, 74, 110, 0.55)';
-  ctx.fillRect(40, 220, 944, 76);
-  ctx.strokeStyle = '#0284c7';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(40, 220, 944, 76);
-
-  ctx.font = 'bold 25px system-ui, sans-serif';
-  ctx.fillStyle = '#f0fdf4';
-  ctx.fillText(`DECISION: "${query.question}"`, 56, 268);
-
-  // 7. Left Tunnel vs Right Tunnel Road Signs
-  // --- LEFT TUNNEL SELECTION BOX ---
-  ctx.fillStyle = 'rgba(5, 46, 22, 0.95)';
-  ctx.fillRect(40, 316, 450, 160);
-  ctx.strokeStyle = '#10b981';
-  ctx.lineWidth = 3.5;
-  ctx.strokeRect(40, 316, 450, 160);
-
-  ctx.font = '900 24px system-ui, sans-serif';
-  ctx.fillStyle = '#34d399';
-  ctx.textAlign = 'center';
-  ctx.fillText('◄ TAKE LEFT TUNNEL', 265, 356);
-
-  ctx.font = '900 28px system-ui, sans-serif';
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText(query.leftLabel, 265, 404);
-
-  ctx.font = 'bold 16px monospace';
-  ctx.fillStyle = '#6ee7b7';
-  ctx.fillText('STEER / SCROLL LEFT TO SELECT', 265, 446);
-
-  // --- RIGHT TUNNEL SELECTION BOX ---
-  ctx.fillStyle = 'rgba(76, 5, 25, 0.95)';
-  ctx.fillRect(534, 316, 450, 160);
-  ctx.strokeStyle = '#f43f5e';
-  ctx.lineWidth = 3.5;
-  ctx.strokeRect(534, 316, 450, 160);
-
-  ctx.font = '900 24px system-ui, sans-serif';
-  ctx.fillStyle = '#fb7185';
-  ctx.textAlign = 'center';
-  ctx.fillText('TAKE RIGHT TUNNEL ►', 759, 356);
-
-  ctx.font = '900 28px system-ui, sans-serif';
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText(query.rightLabel, 759, 404);
-
-  ctx.font = 'bold 16px monospace';
-  ctx.fillStyle = '#fda4af';
-  ctx.fillText('STEER / SCROLL RIGHT TO SELECT', 759, 446);
-
-  // 8. Bottom Lethal Warning Ticker
-  ctx.fillStyle = '#e11d48';
-  ctx.fillRect(40, 496, 944, 44);
-
-  ctx.font = '900 17px monospace';
-  ctx.fillStyle = '#ffffff';
-  ctx.textAlign = 'center';
-  ctx.fillText('⚠ HIGH-STAKES FORK: CHOOSING THE WRONG TUNNEL = INSTANT LIQUIDATION (DEATH)', 512, 524);
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.needsUpdate = true;
-  return texture;
 }
 
 /**
@@ -283,6 +95,11 @@ export class TrackManager {
   private hazardMat: THREE.MeshStandardMaterial;
   private tunnelRoadMat: THREE.MeshStandardMaterial;
   private frameMat: THREE.MeshStandardMaterial;
+  // Egyptian Tomb Materials
+  private egyptianSandstoneMat: THREE.MeshStandardMaterial;
+  private egyptianGoldMat: THREE.MeshStandardMaterial;
+  private egyptianTorchFlameMat: THREE.MeshStandardMaterial;
+  private egyptianBronzeMat: THREE.MeshStandardMaterial;
 
   // Dimensions
   public readonly trackWidth: number = 4.2;
@@ -297,38 +114,65 @@ export class TrackManager {
     this.neonGreenMat = new THREE.MeshStandardMaterial({
       color: 0x10b981,
       emissive: 0x059669,
-      emissiveIntensity: 3.0,
+      emissiveIntensity: 2.2,
       roughness: 0.2,
     });
 
     this.neonRoseMat = new THREE.MeshStandardMaterial({
       color: 0xf43f5e,
       emissive: 0xe11d48,
-      emissiveIntensity: 3.0,
+      emissiveIntensity: 2.2,
       roughness: 0.2,
     });
 
+    this.egyptianGoldMat = new THREE.MeshStandardMaterial({
+      color: 0xd4af37,
+      emissive: 0x855b27,
+      emissiveIntensity: 0.3,
+      metalness: 0.85,
+      roughness: 0.25,
+    });
+
+    this.egyptianTorchFlameMat = new THREE.MeshStandardMaterial({
+      color: 0xff7700,
+      emissive: 0xffaa00,
+      emissiveIntensity: 3.5,
+      roughness: 0.1,
+    });
+
+    this.egyptianBronzeMat = new THREE.MeshStandardMaterial({
+      color: 0x78481d,
+      metalness: 0.75,
+      roughness: 0.35,
+    });
+
+    this.egyptianSandstoneMat = new THREE.MeshStandardMaterial({
+      color: 0xc89e62,
+      roughness: 0.75,
+      metalness: 0.15,
+    });
+
     this.frameMat = new THREE.MeshStandardMaterial({
-      color: 0x0f172a,
-      roughness: 0.3,
-      metalness: 0.8,
+      color: 0x8c6230,
+      roughness: 0.6,
+      metalness: 0.3,
     });
 
     this.stoneDividerMat = new THREE.MeshStandardMaterial({
-      color: 0x27272a,
-      roughness: 0.9,
-      metalness: 0.1,
+      color: 0xa67a3e,
+      roughness: 0.75,
+      metalness: 0.15,
     });
 
     this.hazardMat = new THREE.MeshStandardMaterial({
       map: this.hazardTexture,
-      roughness: 0.5,
+      roughness: 0.6,
       metalness: 0.2,
     });
 
     this.tunnelRoadMat = new THREE.MeshStandardMaterial({
-      color: 0x222622,
-      roughness: 0.8,
+      color: 0xba8c50,
+      roughness: 0.5,
       metalness: 0.2,
     });
 
@@ -350,9 +194,9 @@ export class TrackManager {
     let curPos = new THREE.Vector3(0, 0, -10);
     const curAngle = 0;
 
-    // Runway: first 3 segments straight, 4th segment has the first tunnel fork!
+    // Runway: first 2 segments straight, 3rd segment has the first tunnel fork!
     for (let i = 0; i < 4; i++) {
-      const isFork = (i === 3);
+      const isFork = (i === 2);
       const seg = this.createSegment(curPos, curAngle, i === 0 ? 'none' : undefined, i > 1, isFork);
       this.segments.push(seg);
       this.scene.add(seg.group);
@@ -367,7 +211,7 @@ export class TrackManager {
 
   public appendNextSegment() {
     const lastSeg = this.segments[this.segments.length - 1];
-    // A tunnel fork occurs regularly every ~3-4 segments
+    // A tunnel fork occurs regularly every 3 segments
     const isFork = (this.segmentCounter % 3 === 0);
     const newSeg = this.createSegment(lastSeg.endPos, 0, undefined, true, isFork);
     this.segments.push(newSeg);
@@ -401,7 +245,7 @@ export class TrackManager {
     let forkInstance: ForkInstance | undefined;
 
     // --- TUNNEL FORK & END-OF-TUNNEL QUERY BOARD ---
-    // (Doors have been completely removed! Path splits cleanly into Left & Right roads)
+    // (Doors completely removed! Open Left & Right road tunnels with End-of-Tunnel query wall)
     if (spawnFork) {
       const qIdx = this.queryCounter % MARKET_QUERIES.length;
       const query = MARKET_QUERIES[qIdx];
@@ -416,7 +260,7 @@ export class TrackManager {
       forkInstance = {
         id,
         forkZ: worldForkZ,
-        decisionLineZ: worldForkZ + 4.0, // Point where tunnel selection is evaluated
+        decisionLineZ: worldForkZ + 1.2, // Point where tunnel selection is evaluated
         query,
         queryIndex: qIdx,
         cleared: false,
@@ -429,8 +273,8 @@ export class TrackManager {
     let obsType = forceObstacle;
     if (!obsType && !spawnFork && this.segmentCounter > 2) {
       const rnd = Math.random();
-      if (rnd < 0.4) {
-        obsType = rnd < 0.25 ? 'crash_dip' : 'margin_call';
+      if (rnd < 0.35) {
+        obsType = 'crash_dip';
       }
     }
 
@@ -451,27 +295,10 @@ export class TrackManager {
       };
       obstacles.push(obsInst);
       this.obstacles.push(obsInst);
-    } else if (obsType === 'margin_call') {
-      const gate = createSlideGateObstacle();
-      const obsZ = length * 0.5;
-      gate.position.set(0, 0, obsZ);
-      group.add(gate);
-
-      const worldObsPos = startPos.clone().add(dir.clone().multiplyScalar(obsZ));
-      const obsInst: ObstacleInstance = {
-        group: gate,
-        type: 'gate',
-        worldPos: worldObsPos,
-        lane: 0,
-        boundingSphere: new THREE.Sphere(worldObsPos, 1.5),
-        cleared: false,
-      };
-      obstacles.push(obsInst);
-      this.obstacles.push(obsInst);
     }
 
     // Gold Bullion Coins ($) along Corridor Floor
-    if (spawnCoins && obsType !== 'margin_call' && !spawnFork) {
+    if (spawnCoins && !spawnFork) {
       const coinLane = Math.floor(Math.random() * 3) - 1;
       const coinCount = 3;
       const startZ = length * 0.25;
@@ -514,160 +341,247 @@ export class TrackManager {
   }
 
   /**
-   * 3D TUNNEL FORK & END-OF-TUNNEL QUERY BOARD:
-   * 1. Query Table Board: positioned directly at the end of the incoming tunnel.
-   * 2. Left Road / Tunnel: branches outward to the left (YES/BUY option).
-   * 3. Right Road / Tunnel: branches outward to the right (NO/PASS option).
-   * 4. Center Divider: hazard-striped stone barrier in the center between the two roads.
-   * NO DOORS: completely open tunnel openings!
+   * 3D EGYPTIAN TEMPLE FORK:
+   * (End-of-tunnel query billboard completely REMOVED as requested!)
+   * 1. Left Egyptian Tomb Portal: Open sandstone arch with Golden Ankh relief (YES/BUY option).
+   * 2. Right Egyptian Tomb Portal: Open sandstone arch with Golden Eye of Horus relief (NO/PASS option).
+   * 3. Center Divider: Monumental Egyptian Sandstone Obelisk with Golden Pyramidion apex.
+   * 4. Lethal Trap: In the wrong passage, lethal bronze spike barricade is active!
    */
   private addTunnelFork(parent: THREE.Group, forkZ: number, query: MarketQuery) {
     const forkGroup = new THREE.Group();
     forkGroup.position.set(0, 0, forkZ);
 
-    // ========================================================
-    // 1. END-OF-TUNNEL QUERY DISPLAY BOARD
-    // Looks like the back wall / end of the tunnel ahead!
-    // ========================================================
-    const boardTex = createEndOfTunnelBillboardTexture(query);
-    const boardMat = new THREE.MeshBasicMaterial({
-      map: boardTex,
-      toneMapped: false,
-    });
-
-    const boardW = 5.2;
-    const boardH = 3.0;
-    const boardGeom = new THREE.PlaneGeometry(boardW, boardH);
-    const boardMesh = new THREE.Mesh(boardGeom, boardMat);
-    // Positioned facing the runner, spanning the tunnel end
-    boardMesh.position.set(0, 2.5, 0);
-    forkGroup.add(boardMesh);
-
-    // Frame & Industrial Truss for Board
-    const frameGeom = new THREE.BoxGeometry(boardW + 0.25, boardH + 0.25, 0.15);
-    const frameMesh = new THREE.Mesh(frameGeom, this.frameMat);
-    frameMesh.position.set(0, 2.5, -0.08);
-    forkGroup.add(frameMesh);
-
-    // Overhead Illumination Floodlights on the Board
-    const boardLight = new THREE.PointLight(0x6ee7b7, 3.5, 9);
-    boardLight.position.set(0, 4.0, 1.2);
-    forkGroup.add(boardLight);
-
-    // Left & Right Beacon Lights atop Board
-    const beaconL = new THREE.PointLight(0x10b981, 2.0, 6);
-    beaconL.position.set(-boardW * 0.45, 4.2, 0.2);
-    forkGroup.add(beaconL);
-
-    const beaconR = new THREE.PointLight(0xf43f5e, 2.0, 6);
-    beaconR.position.set(boardW * 0.45, 4.2, 0.2);
-    forkGroup.add(beaconR);
-
-    // ========================================================
-    // 2. LEFT ROAD / TUNNEL (YES / BUY Selection)
-    // Branches out to the left: x = -1.2 to -2.8
-    // ========================================================
     const branchLen = 22.0;
 
-    // Left road stone floor
+    // ========================================================
+    // 1. LEFT EGYPTIAN TOMB PORTAL (YES / BUY Selection)
+    // Completely OPEN! Runner steers left into it.
+    // ========================================================
+    // Left road ancient temple flagstone floor
     const leftRoadGeom = new THREE.PlaneGeometry(2.4, branchLen);
     const leftRoad = new THREE.Mesh(leftRoadGeom, this.tunnelRoadMat);
     leftRoad.rotation.x = -Math.PI / 2;
-    // Angled slightly outward to left
-    leftRoad.rotation.z = 0.08;
     leftRoad.position.set(-1.85, 0.01, branchLen * 0.5);
     leftRoad.receiveShadow = true;
     forkGroup.add(leftRoad);
 
-    // Left Road Outer Stone Wall
+    // Left Road Outer Sandstone Relief Wall
     const leftWallGeom = new THREE.PlaneGeometry(branchLen, 4.2);
     const leftOuterWall = new THREE.Mesh(leftWallGeom, this.stoneDividerMat);
-    leftOuterWall.rotation.y = Math.PI / 2 - 0.08;
-    leftOuterWall.position.set(-3.1, 2.0, branchLen * 0.5);
+    leftOuterWall.rotation.y = Math.PI / 2;
+    leftOuterWall.position.set(-3.05, 2.1, branchLen * 0.5);
     forkGroup.add(leftOuterWall);
 
-    // Left Road Neon Emerald Guide Kerbs (Pavement Light Strips)
-    const kerbGeom = new THREE.BoxGeometry(0.12, 0.16, branchLen);
-    const leftKerb = new THREE.Mesh(kerbGeom, this.neonGreenMat);
-    leftKerb.position.set(-3.0, 0.08, branchLen * 0.5);
-    forkGroup.add(leftKerb);
+    // Left Egyptian Temple Colonnade Pillars
+    const colGeom = new THREE.CylinderGeometry(0.22, 0.28, 4.0, 10);
+    const colLeft1 = new THREE.Mesh(colGeom, this.egyptianSandstoneMat);
+    colLeft1.position.set(-3.0, 2.0, 0.2);
+    forkGroup.add(colLeft1);
 
-    const leftInnerKerb = new THREE.Mesh(kerbGeom, this.neonGreenMat);
-    leftInnerKerb.position.set(-0.7, 0.08, branchLen * 0.5);
-    forkGroup.add(leftInnerKerb);
+    const colLeft2 = new THREE.Mesh(colGeom, this.egyptianSandstoneMat);
+    colLeft2.position.set(-0.7, 2.0, 0.2);
+    forkGroup.add(colLeft2);
 
-    // Left Road Overhead Neon Sign: [ ◄ LEFT TUNNEL: YES ]
-    const leftSignGeom = new THREE.BoxGeometry(2.2, 0.5, 0.1);
-    const leftSign = new THREE.Mesh(leftSignGeom, this.neonGreenMat);
-    leftSign.position.set(-1.85, 3.2, 3.5);
+    // Left Portal Architrave Lintel (Monumental Carved Sandstone)
+    const lintelGeom = new THREE.BoxGeometry(2.5, 0.5, 0.4);
+    const leftLintel = new THREE.Mesh(lintelGeom, this.egyptianSandstoneMat);
+    leftLintel.position.set(-1.85, 3.8, 0.2);
+    forkGroup.add(leftLintel);
+
+    // Golden Ankh Lintel Relief on Left Portal
+    const ankhBaseGeom = new THREE.BoxGeometry(2.2, 0.45, 0.12);
+    const leftSign = new THREE.Mesh(ankhBaseGeom, this.egyptianGoldMat);
+    leftSign.position.set(-1.85, 3.3, 0.2);
     forkGroup.add(leftSign);
 
+    // Left Portal Warm Torch Sconces
+    const portalTorchL = new THREE.PointLight(0x10b981, 2.2, 8);
+    portalTorchL.position.set(-1.85, 3.2, -0.5);
+    forkGroup.add(portalTorchL);
+
+    // Left Passage Interior: Safe Path vs Lethal Spike Trap
+    if (query.correctSide === 'left') {
+      // Safe passage: Golden clearance glow & sacred treasure
+      const safeGlow = new THREE.PointLight(0xf59e0b, 2.8, 10);
+      safeGlow.position.set(-1.85, 2.0, 4.0);
+      forkGroup.add(safeGlow);
+
+      const bonusCoin = createGoldCoin();
+      bonusCoin.position.set(-1.85, 0.6, 3.5);
+      forkGroup.add(bonusCoin);
+    } else {
+      // Lethal Trap in Left Passage: Bronze lethal spiked barrier
+      const dangerGlow = new THREE.PointLight(0xef4444, 4.0, 9);
+      dangerGlow.position.set(-1.85, 2.0, 2.5);
+      forkGroup.add(dangerGlow);
+
+      // Ancient tomb spiked crash barricade
+      const barricadeGeom = new THREE.BoxGeometry(2.2, 2.8, 0.5);
+      const barricade = new THREE.Mesh(barricadeGeom, this.hazardMat);
+      barricade.position.set(-1.85, 1.4, 3.0);
+      forkGroup.add(barricade);
+
+      // Lethal spikes protruding
+      const spikeGeom = new THREE.ConeGeometry(0.12, 0.6, 6);
+      spikeGeom.rotateX(Math.PI / 2);
+      for (let s = -0.8; s <= 0.8; s += 0.4) {
+        const spike = new THREE.Mesh(spikeGeom, this.egyptianBronzeMat);
+        spike.position.set(-1.85 + s, 1.5, 2.7);
+        forkGroup.add(spike);
+      }
+    }
+
     // ========================================================
-    // 3. RIGHT ROAD / TUNNEL (NO / PASS Selection)
-    // Branches out to the right: x = +1.2 to +2.8
+    // 2. RIGHT EGYPTIAN TOMB PORTAL (NO / PASS Selection)
+    // Completely OPEN! Runner steers right into it.
     // ========================================================
     const rightRoad = new THREE.Mesh(leftRoadGeom, this.tunnelRoadMat);
     rightRoad.rotation.x = -Math.PI / 2;
-    rightRoad.rotation.z = -0.08;
     rightRoad.position.set(1.85, 0.01, branchLen * 0.5);
     rightRoad.receiveShadow = true;
     forkGroup.add(rightRoad);
 
-    // Right Road Outer Stone Wall
+    // Right Road Outer Sandstone Wall
     const rightOuterWall = new THREE.Mesh(leftWallGeom, this.stoneDividerMat);
-    rightOuterWall.rotation.y = -Math.PI / 2 + 0.08;
-    rightOuterWall.position.set(3.1, 2.0, branchLen * 0.5);
+    rightOuterWall.rotation.y = -Math.PI / 2;
+    rightOuterWall.position.set(3.05, 2.1, branchLen * 0.5);
     forkGroup.add(rightOuterWall);
 
-    // Right Road Neon Rose Guide Kerbs (Pavement Light Strips)
-    const rightKerb = new THREE.Mesh(kerbGeom, this.neonRoseMat);
-    rightKerb.position.set(3.0, 0.08, branchLen * 0.5);
-    forkGroup.add(rightKerb);
+    // Right Egyptian Temple Colonnade Pillars
+    const colRight1 = new THREE.Mesh(colGeom, this.egyptianSandstoneMat);
+    colRight1.position.set(0.7, 2.0, 0.2);
+    forkGroup.add(colRight1);
 
-    const rightInnerKerb = new THREE.Mesh(kerbGeom, this.neonRoseMat);
-    rightInnerKerb.position.set(0.7, 0.08, branchLen * 0.5);
-    forkGroup.add(rightInnerKerb);
+    const colRight2 = new THREE.Mesh(colGeom, this.egyptianSandstoneMat);
+    colRight2.position.set(3.0, 2.0, 0.2);
+    forkGroup.add(colRight2);
 
-    // Right Road Overhead Neon Sign: [ RIGHT TUNNEL: NO ► ]
-    const rightSignGeom = new THREE.BoxGeometry(2.2, 0.5, 0.1);
-    const rightSign = new THREE.Mesh(rightSignGeom, this.neonRoseMat);
-    rightSign.position.set(1.85, 3.2, 3.5);
+    // Right Portal Architrave Lintel
+    const rightLintel = new THREE.Mesh(lintelGeom, this.egyptianSandstoneMat);
+    rightLintel.position.set(1.85, 3.8, 0.2);
+    forkGroup.add(rightLintel);
+
+    // Golden Eye of Horus Lintel Relief on Right Portal
+    const rightSign = new THREE.Mesh(ankhBaseGeom, this.egyptianGoldMat);
+    rightSign.position.set(1.85, 3.3, 0.2);
     forkGroup.add(rightSign);
 
-    // ========================================================
-    // 4. CENTER DIVIDER WEDGE (Hazard-Striped Crash Barrier)
-    // Separates the Left and Right road. Hesitation / staying in center = crash!
-    // ========================================================
-    const dividerGeom = new THREE.BoxGeometry(1.2, 3.2, branchLen);
-    const dividerMesh = new THREE.Mesh(dividerGeom, this.stoneDividerMat);
-    dividerMesh.position.set(0, 1.6, branchLen * 0.5);
-    forkGroup.add(dividerMesh);
+    const portalTorchR = new THREE.PointLight(0xf43f5e, 2.2, 8);
+    portalTorchR.position.set(1.85, 3.2, -0.5);
+    forkGroup.add(portalTorchR);
 
-    // Nose Hazard Plate (Facing Oncoming Runner)
-    const noseGeom = new THREE.BoxGeometry(1.22, 3.22, 0.3);
-    const noseMesh = new THREE.Mesh(noseGeom, this.hazardMat);
-    noseMesh.position.set(0, 1.6, 0.15);
-    forkGroup.add(noseMesh);
+    // Right Passage Interior: Safe Path vs Lethal Spike Trap
+    if (query.correctSide === 'right') {
+      const safeGlow = new THREE.PointLight(0xf59e0b, 2.8, 10);
+      safeGlow.position.set(1.85, 2.0, 4.0);
+      forkGroup.add(safeGlow);
 
-    // Flashing Alert Beacon on Nose
-    const noseBeacon = new THREE.PointLight(0xeab308, 2.5, 5);
-    noseBeacon.position.set(0, 3.4, 0.3);
-    forkGroup.add(noseBeacon);
+      const bonusCoin = createGoldCoin();
+      bonusCoin.position.set(1.85, 0.6, 3.5);
+      forkGroup.add(bonusCoin);
+    } else {
+      const dangerGlow = new THREE.PointLight(0xef4444, 4.0, 9);
+      dangerGlow.position.set(1.85, 2.0, 2.5);
+      forkGroup.add(dangerGlow);
+
+      const barricadeGeom = new THREE.BoxGeometry(2.2, 2.8, 0.5);
+      const barricade = new THREE.Mesh(barricadeGeom, this.hazardMat);
+      barricade.position.set(1.85, 1.4, 3.0);
+      forkGroup.add(barricade);
+
+      const spikeGeom = new THREE.ConeGeometry(0.12, 0.6, 6);
+      spikeGeom.rotateX(Math.PI / 2);
+      for (let s = -0.8; s <= 0.8; s += 0.4) {
+        const spike = new THREE.Mesh(spikeGeom, this.egyptianBronzeMat);
+        spike.position.set(1.85 + s, 1.5, 2.7);
+        forkGroup.add(spike);
+      }
+    }
+
+    // ========================================================
+    // 3. CENTER DIVIDER: MONUMENTAL EGYPTIAN SANDSTONE OBELISK
+    // Divides Left and Right roads with golden pyramidion apex!
+    // ========================================================
+    const obeliskBaseGeom = new THREE.BoxGeometry(1.2, 3.4, branchLen);
+    const obeliskBase = new THREE.Mesh(obeliskBaseGeom, this.stoneDividerMat);
+    obeliskBase.position.set(0, 1.7, branchLen * 0.5);
+    forkGroup.add(obeliskBase);
+
+    // Tall Tapering Front Obelisk Pylon Facing Runner
+    const pylonGeom = new THREE.BoxGeometry(1.2, 4.2, 3.2);
+    const pylon = new THREE.Mesh(pylonGeom, this.egyptianSandstoneMat);
+    pylon.position.set(0, 2.1, -1.6);
+    forkGroup.add(pylon);
+
+    // Golden Pyramidion (Apex cap of the Obelisk)
+    const capGeom = new THREE.ConeGeometry(0.85, 1.2, 4);
+    capGeom.rotateY(Math.PI / 4);
+    const cap = new THREE.Mesh(capGeom, this.egyptianGoldMat);
+    cap.position.set(0, 4.8, -1.6);
+    forkGroup.add(cap);
+
+    // Flanked by sacred golden flame beacon on the Obelisk
+    const obeliskLight = new THREE.PointLight(0xffaa33, 2.5, 9);
+    obeliskLight.position.set(0, 4.2, -2.5);
+    forkGroup.add(obeliskLight);
 
     parent.add(forkGroup);
   }
 
+  /**
+   * Authentic Egyptian Flaming Wall Torches
+   * Bronze bracket, fire bowl, flickering flame mesh, and warm amber torchlight.
+   */
   private addCandlestickSconces(parent: THREE.Group, z: number) {
-    const candleGeom = new THREE.CylinderGeometry(0.09, 0.09, 1.1, 8);
-    const postMat = (z % 16 === 0) ? this.neonGreenMat : this.neonRoseMat;
+    // 1. Bronze Wall Bracket & Torch Shaft
+    const bracketGeom = new THREE.CylinderGeometry(0.04, 0.05, 0.6, 8);
+    bracketGeom.rotateZ(0.25); // Angled outward from the wall
 
-    const leftCandle = new THREE.Mesh(candleGeom, postMat);
-    leftCandle.position.set(-this.trackWidth * 0.5 - 0.1, 0.7, z);
-    parent.add(leftCandle);
+    const bowlGeom = new THREE.CylinderGeometry(0.12, 0.05, 0.16, 8);
+    const flameGeom = new THREE.ConeGeometry(0.10, 0.35, 8);
 
-    const rightCandle = new THREE.Mesh(candleGeom, postMat === this.neonGreenMat ? this.neonRoseMat : this.neonGreenMat);
-    rightCandle.position.set(this.trackWidth * 0.5 + 0.1, 0.7, z);
-    parent.add(rightCandle);
+    // Left Wall Torch
+    const leftHolder = new THREE.Group();
+    leftHolder.position.set(-this.trackWidth * 0.5 - 0.05, 1.2, z);
+
+    const leftShaft = new THREE.Mesh(bracketGeom, this.egyptianBronzeMat);
+    leftShaft.position.set(0.1, -0.1, 0);
+    leftHolder.add(leftShaft);
+
+    const leftBowl = new THREE.Mesh(bowlGeom, this.egyptianBronzeMat);
+    leftBowl.position.set(0.2, 0.12, 0);
+    leftHolder.add(leftBowl);
+
+    const leftFlame = new THREE.Mesh(flameGeom, this.egyptianTorchFlameMat);
+    leftFlame.position.set(0.2, 0.35, 0);
+    leftHolder.add(leftFlame);
+
+    parent.add(leftHolder);
+
+    // Right Wall Torch
+    const rightHolder = new THREE.Group();
+    rightHolder.position.set(this.trackWidth * 0.5 + 0.05, 1.2, z);
+
+    const rightShaft = new THREE.Mesh(bracketGeom, this.egyptianBronzeMat);
+    rightShaft.rotation.z = -0.25 * 2;
+    rightShaft.position.set(-0.1, -0.1, 0);
+    rightHolder.add(rightShaft);
+
+    const rightBowl = new THREE.Mesh(bowlGeom, this.egyptianBronzeMat);
+    rightBowl.position.set(-0.2, 0.12, 0);
+    rightHolder.add(rightBowl);
+
+    const rightFlame = new THREE.Mesh(flameGeom, this.egyptianTorchFlameMat);
+    rightFlame.position.set(-0.2, 0.35, 0);
+    rightHolder.add(rightFlame);
+
+    parent.add(rightHolder);
+
+    // Warm Egyptian Torchlight Point Light (illuminating the hieroglyphic walls)
+    const torchLight = new THREE.PointLight(0xffa238, 1.2, 7.5);
+    torchLight.position.set((z % 16 === 0 ? -1 : 1) * (this.trackWidth * 0.5 - 0.4), 1.5, z);
+    parent.add(torchLight);
   }
 
   public update(playerPos: THREE.Vector3, _time: number) {

@@ -12,16 +12,16 @@ export function createStockMarketTapeTexture(): THREE.CanvasTexture {
   canvas.height = 512;
   const ctx = canvas.getContext('2d')!;
 
-  // 1. Sleek obsidian dark terminal background
+  // 1. Sleek Egyptian dark basalt & gold-leaf terminal background
   const bgGrad = ctx.createLinearGradient(0, 0, 1024, 512);
-  bgGrad.addColorStop(0, '#070b0e');
-  bgGrad.addColorStop(0.5, '#0d131a');
-  bgGrad.addColorStop(1, '#070b0e');
+  bgGrad.addColorStop(0, '#120d08');
+  bgGrad.addColorStop(0.5, '#1a140d');
+  bgGrad.addColorStop(1, '#120d08');
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, 1024, 512);
 
   // 2. Micro Dot-Matrix & Chart Grid
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+  ctx.strokeStyle = 'rgba(212, 175, 55, 0.08)';
   ctx.lineWidth = 1;
   const gridSize = 32;
   for (let x = 0; x < 1024; x += gridSize) {
@@ -37,14 +37,14 @@ export function createStockMarketTapeTexture(): THREE.CanvasTexture {
     ctx.stroke();
   }
 
-  // 3. Ticker Tape Perforated Tractor-Feed Margins (authentic ticker tape printer look)
-  ctx.fillStyle = '#1e293b';
+  // 3. Ticker Tape Perforated Tractor-Feed Margins (Pharaoh's gold accented sprocket holes)
+  ctx.fillStyle = '#2d2012';
   for (let x = 16; x < 1024; x += 32) {
     // Top sprocket hole
     ctx.beginPath();
     ctx.arc(x, 14, 5, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.strokeStyle = '#d4af37';
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
@@ -55,21 +55,21 @@ export function createStockMarketTapeTexture(): THREE.CanvasTexture {
     ctx.stroke();
   }
 
-  // 4. Glowing Horizontal Ticker Rails
-  // Top neon line
-  ctx.strokeStyle = '#10b981';
-  ctx.lineWidth = 3;
-  ctx.shadowColor = '#10b981';
+  // 4. Glowing Gold & Emerald Horizontal Ticker Rails
+  // Top gold leaf rail
+  ctx.strokeStyle = '#d4af37';
+  ctx.lineWidth = 3.5;
+  ctx.shadowColor = '#f59e0b';
   ctx.shadowBlur = 8;
   ctx.beginPath();
   ctx.moveTo(0, 28);
   ctx.lineTo(1024, 28);
   ctx.stroke();
 
-  // Bottom neon line
-  ctx.strokeStyle = '#06b6d4';
-  ctx.lineWidth = 3;
-  ctx.shadowColor = '#06b6d4';
+  // Bottom gold leaf rail
+  ctx.strokeStyle = '#d4af37';
+  ctx.lineWidth = 3.5;
+  ctx.shadowColor = '#f59e0b';
   ctx.shadowBlur = 8;
   ctx.beginPath();
   ctx.moveTo(0, 484);

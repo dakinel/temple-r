@@ -329,18 +329,11 @@ export class CharacterController {
         let isHit = false;
 
         if (obs.type === 'tree') {
-          // Tree is low to ground: requires jumping! If player is below 0.65m, hit!
+          // Tree hurdle is low to ground: requires jumping! If player is below 0.65m, hit!
           if (this.position.y < 0.65) {
             isHit = true;
           } else {
             obs.cleared = true; // successfully cleared
-          }
-        } else if (obs.type === 'gate') {
-          // Gate is high arch: requires sliding! If player is NOT sliding, hit!
-          if (this.state !== 'slide') {
-            isHit = true;
-          } else {
-            obs.cleared = true;
           }
         }
 

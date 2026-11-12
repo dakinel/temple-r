@@ -82,7 +82,7 @@ export class GameEngine {
     });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.15;
+    this.renderer.toneMappingExposure = 0.98;
     this.renderer.setPixelRatio(this.isSoftwareGl ? 1 : Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(container.clientWidth, container.clientHeight);
     this.renderer.shadowMap.enabled = !this.isSoftwareGl;
@@ -90,10 +90,10 @@ export class GameEngine {
 
     container.appendChild(this.renderer.domElement);
 
-    // 3. Scene & Atmospheric Fog matching Keith Clark CSS FPS (rgb(10, 25, 10))
+    // 3. Scene & Authentic Egyptian Tomb Atmospheric Fog
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x0a190a);
-    this.scene.fog = new THREE.FogExp2(0x0a190a, 0.018);
+    this.scene.background = new THREE.Color(0x1a1108);
+    this.scene.fog = new THREE.FogExp2(0x1a1108, 0.022);
 
     // 4. Camera (perspective matching FPS corridor)
     this.camera = new THREE.PerspectiveCamera(
@@ -105,12 +105,12 @@ export class GameEngine {
     this.camera.position.set(0, 3.2, -5.5);
     this.camera.lookAt(0, 1.2, 3);
 
-    // 5. Studio Environment Map (RoomEnvironment)
+    // 5. Studio Environment Map (Soft warm bounce)
     const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
-    this.scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
+    this.scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.015).texture;
     pmremGenerator.dispose();
 
-    // 6. Balanced Lighting Rig
+    // 6. Balanced Low-Light Atmospheric Lighting Rig
     this.setupLighting();
 
     // 7. Keith Clark CSS FPS 3D Corridor (wall.jpg, ceil.jpg, floor.jpg, and dark green shadows)
@@ -160,31 +160,36 @@ export class GameEngine {
   }
 
   private setupLighting() {
-    // Key Sun Light (Cool crisp white)
-    const sunLight = new THREE.DirectionalLight(0xf1f5f9, 2.4);
-    sunLight.position.set(18, 32, 14);
+    // Warm Egyptian Desert Sunlight Shaft Directional Key Light
+    const sunLight = new THREE.DirectionalLight(0xffd188, 0.75);
+    sunLight.position.set(12, 28, 14);
     sunLight.castShadow = !this.isSoftwareGl;
     if (!this.isSoftwareGl) {
       sunLight.shadow.mapSize.width = 1024;
       sunLight.shadow.mapSize.height = 1024;
       sunLight.shadow.camera.near = 0.5;
-      sunLight.shadow.camera.far = 100;
-      sunLight.shadow.camera.left = -16;
-      sunLight.shadow.camera.right = 16;
-      sunLight.shadow.camera.top = 16;
-      sunLight.shadow.camera.bottom = -16;
+      sunLight.shadow.camera.far = 80;
+      sunLight.shadow.camera.left = -14;
+      sunLight.shadow.camera.right = 14;
+      sunLight.shadow.camera.top = 14;
+      sunLight.shadow.camera.bottom = -14;
       sunLight.shadow.bias = -0.0005;
       sunLight.shadow.normalBias = 0.02;
     }
     this.scene.add(sunLight);
 
-    // Bullish Green & Financial Blue Hemisphere Lighting
-    const hemiLight = new THREE.HemisphereLight(0x38bdf8, 0x064e3b, 1.2);
+    // Warm Golden Sandstone Bounce Hemisphere Light
+    const hemiLight = new THREE.HemisphereLight(0xff9933, 0x3a200a, 0.45);
     this.scene.add(hemiLight);
 
-    // Subtle Ambient
-    const ambientLight = new THREE.AmbientLight(0x0f172a, 0.9);
+    // Warm Ambient Tomb Fill
+    const ambientLight = new THREE.AmbientLight(0x2d1908, 0.35);
     this.scene.add(ambientLight);
+
+    // Shimmering Pharaoh's Gold Rim Light on Runner from behind
+    const rimLight = new THREE.DirectionalLight(0xf59e0b, 0.45);
+    rimLight.position.set(-4, 6, -10);
+    this.scene.add(rimLight);
   }
 
   private setupStartPedestal() {
@@ -446,6 +451,14 @@ export class GameEngine {
               query: fork.query,
               chosenSide,
             });
+
+            // Smoothly re-center for the next straight corridor section
+            setTimeout(() => {
+              if (this.player.state === 'run') {
+                this.player.currentLane = 0;
+                this.player.targetLaneX = 0;
+              }
+            }, 1400);
           } else {
             sound.playCrash();
             this.callbacks.onForkDecision?.({

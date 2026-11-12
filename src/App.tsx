@@ -52,55 +52,63 @@ export default function App() {
 
   const queryIndexRef = useRef(queryIndex);
   queryIndexRef.current = queryIndex;
-  const decisionCooldownRef = useRef(0);
-
-  // Execute Trading Decision (Move Left = YES/BUY, Move Right = NO/PASS)
-  const handleMakeDecision = useCallback((isYes: boolean) => {
-    const now = performance.now();
-    if (now - decisionCooldownRef.current < 800) return; // Prevent double trigger
-    decisionCooldownRef.current = now;
-
-    const currentQ = MARKET_QUERIES[queryIndexRef.current];
-    const profit = isYes ? currentQ.yesProfit : currentQ.noProfit;
-    const text = isYes ? currentQ.yesFeedback : currentQ.noFeedback;
-    const action = isYes ? currentQ.yesAction : currentQ.noAction;
-
-    if (profit >= 0) {
+  const handleForkDecision = useCallback((result: {
+    survived: boolean;
+    profit: number;
+    feedback: string;
+    query: MarketQuery;
+    chosenSide: 'left' | 'right';
+  }) => {
+    if (result.survived) {
       setStreak((s) => s + 1);
-      sound.playCoin();
+      setPortfolioValue((prev) => {
+        const updated = prev + result.profit;
+        setHighScore((h) => {
+          if (updated > h) {
+            localStorage.setItem('templerun_3d_highscore', updated.toString());
+            setIsNewHigh(true);
+            return updated;
+          }
+          return h;
+        });
+        return updated;
+      });
+
+      setStats((prev) => ({
+        ...prev,
+        score: Math.max(0, prev.score + result.profit),
+      }));
+
+      setDecisionFeedback({
+        text: result.feedback,
+        profit: result.profit,
+        isYes: result.chosenSide === 'left',
+      });
+      setTimeout(() => {
+        setDecisionFeedback(null);
+      }, 3200);
+
+      setTradeHistory((prev) => [
+        ...prev.slice(-3),
+        {
+          ticker: result.query.ticker,
+          action: result.chosenSide === 'left' ? result.query.leftLabel : result.query.rightLabel,
+          profit: result.profit,
+        },
+      ]);
+
+      // Advance to next stock query
+      setQueryIndex((prev) => (prev + 1) % MARKET_QUERIES.length);
     } else {
       setStreak(0);
-      sound.playCrash();
+      setPortfolioValue((prev) => Math.max(0, prev + result.profit));
+      setDecisionFeedback({
+        text: result.feedback,
+        profit: result.profit,
+        isYes: result.chosenSide === 'left',
+      });
     }
-
-    setPortfolioValue((prev) => {
-      const updated = Math.max(0, prev + profit);
-      if (updated > highScore) {
-        setHighScore(updated);
-        localStorage.setItem('templerun_3d_highscore', updated.toString());
-        setIsNewHigh(true);
-      }
-      return updated;
-    });
-
-    setStats((prev) => ({
-      ...prev,
-      score: Math.max(0, prev.score + profit),
-    }));
-
-    setDecisionFeedback({ text, profit, isYes });
-    setTimeout(() => {
-      setDecisionFeedback(null);
-    }, 2400);
-
-    setTradeHistory((prev) => [
-      ...prev.slice(-3),
-      { ticker: currentQ.ticker, action, profit },
-    ]);
-
-    // Advance to next stock query
-    setQueryIndex((prev) => (prev + 1) % MARKET_QUERIES.length);
-  }, [highScore]);
+  }, []);
 
   // Initialize GameEngine once
   useEffect(() => {
@@ -112,19 +120,13 @@ export default function App() {
         if (engineRef.current) {
           const p = engineRef.current.player;
           setCurrentLaneX(p.currentLaneX);
-
-          // Check if player is passing through a 3D decision gate
-          const gates = engineRef.current.trackManager.decisionGates;
-          for (const gate of gates) {
-            if (!gate.cleared && Math.abs(p.position.z - gate.worldZ) < 1.4) {
-              gate.cleared = true;
-              // Left lane = YES, Right lane = NO
-              const isYes = p.currentLaneX <= 0;
-              handleMakeDecision(isYes);
-              break;
-            }
-          }
         }
+      },
+      onForkApproaching: (fork) => {
+        setQueryIndex(fork.queryIndex);
+      },
+      onForkDecision: (result) => {
+        handleForkDecision(result);
       },
       onGameOver: (finalStats) => {
         setGamePhase('gameover');
@@ -154,7 +156,7 @@ export default function App() {
       engine.dispose();
       engineRef.current = null;
     };
-  }, [handleMakeDecision]);
+  }, [handleForkDecision, adventurer]);
 
   const handleSelectAdventurer = (profile: AdventurerProfile) => {
     setAdventurer(profile);
@@ -323,15 +325,13 @@ export default function App() {
     touchStartRef.current = null;
   };
 
-  // Direct Button Handlers for Trading Screen
+  // Direct Button Handlers for Left / Right Tunnel Selection
   const handleChooseYesButton = () => {
-    engineRef.current?.player.moveLeft();
-    handleMakeDecision(true);
+    engineRef.current?.selectTunnel('left');
   };
 
   const handleChooseNoButton = () => {
-    engineRef.current?.player.moveRight();
-    handleMakeDecision(false);
+    engineRef.current?.selectTunnel('right');
   };
 
   // Start / Restart Game

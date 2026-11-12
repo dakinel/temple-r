@@ -113,8 +113,8 @@ export const StartScreen: React.FC<StartScreenProps> = ({
             </div>
           </div>
           <div className="mt-2.5 pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
-            <span>Also tap buttons directly on the in-front trading screen</span>
-            <span className="text-emerald-400 font-mono font-bold">A/D or Wheel</span>
+            <span>Steer into Left or Right tunnel to execute trade</span>
+            <span className="text-emerald-400 font-mono font-bold">A/D, Wheel or Swipe</span>
           </div>
         </div>
 

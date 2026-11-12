@@ -5,19 +5,16 @@ import {
   Pause,
   Play,
   RotateCcw,
-  ArrowLeft,
-  ArrowRight,
-  ArrowUp,
-  ArrowDown,
   Shield,
   Magnet,
   Zap,
   Camera,
+  Users,
 } from 'lucide-react';
 import { sound } from '../game/audio';
 import { AdventurerProfile, getDiceBearAvatarUrl } from '../game/adventurers';
-import { TradingScreen } from './TradingScreen';
 import { MarketQuery } from '../game/queries';
+import { TradingScreen } from './TradingScreen';
 
 interface GameHUDProps {
   score: number;
@@ -61,7 +58,6 @@ interface GameHUDProps {
 }
 
 export const GameHUD: React.FC<GameHUDProps> = ({
-  score,
   coins,
   distance,
   isPaused,
@@ -77,16 +73,10 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   currentLaneX,
   decisionFeedback,
   tradeHistory,
-  onChooseYes,
-  onChooseNo,
   onOpenAdventurerSelect,
   onToggleCamera,
   onPauseToggle,
   onRestart,
-  onMoveLeft,
-  onMoveRight,
-  onJump,
-  onSlide,
 }) => {
   const [isMuted, setIsMuted] = useState(!sound.enabled);
 
@@ -96,193 +86,173 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   };
 
   return (
-    <div className="absolute inset-0 pointer-events-none select-none flex flex-col justify-between p-3 sm:p-4">
-      {/* Top Status Bar */}
-      <div className="flex items-center justify-between w-full max-w-4xl mx-auto pointer-events-auto gap-2">
-        <div className="flex items-center gap-2">
-          {/* Active Runner Avatar */}
-          <button
-            onClick={onOpenAdventurerSelect}
-            className="bg-slate-900/90 hover:bg-slate-800/90 border border-emerald-500/50 rounded-xl p-1.5 pr-2.5 shadow-lg flex items-center gap-2 transition group cursor-pointer"
-            title="Switch Trader Avatar"
-          >
-            <div className="w-8 h-8 rounded-lg bg-slate-950 border border-emerald-400/60 overflow-hidden shrink-0">
-              <img
-                src={getDiceBearAvatarUrl(adventurer.seed)}
-                alt={adventurer.name}
-                className="w-full h-full object-cover group-hover:scale-110 transition duration-150"
-              />
-            </div>
-            <div className="flex flex-col text-left hidden sm:flex">
-              <span className="text-[10px] font-black text-emerald-400 tracking-wider uppercase truncate max-w-[85px]">
-                {adventurer.name}
-              </span>
-              <span className="text-[9px] text-slate-400 truncate max-w-[85px]">
-                {adventurer.perk}
-              </span>
-            </div>
-          </button>
-
-          {/* Distance Indicator */}
-          <div className="bg-slate-900/90 border border-emerald-500/40 rounded-xl px-3 sm:px-4 py-2 shadow-lg flex items-center gap-2">
-            <span className="text-[10px] tracking-widest uppercase font-semibold text-emerald-400">
-              Run
+    <div className="absolute inset-0 pointer-events-none select-none flex flex-col justify-between p-2 sm:p-4">
+      {/* Top Docked Bar: Distance + Sleek Top Query Table + Bullion & Pause */}
+      <div className="w-full max-w-6xl mx-auto flex flex-col gap-1 pointer-events-auto">
+        <div className="flex items-center justify-between gap-2">
+          {/* Left: Run Distance Indicator */}
+          <div className="flex items-center gap-2 bg-slate-950/80 backdrop-blur-md border border-amber-500/40 rounded-xl px-3 py-1.5 shadow-xl shrink-0">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-amber-400">
+              RUN
             </span>
             <span className="text-base sm:text-lg font-black text-white font-mono tabular-nums">
               {distance}m
             </span>
           </div>
+
+          {/* Center: Top Docked Minimal Query Table */}
+          <div className="flex-1 max-w-2xl mx-auto">
+            <TradingScreen
+              currentQuery={currentQuery}
+              portfolioValue={portfolioValue}
+              startingCapital={startingCapital}
+              streak={streak}
+              currentLaneX={currentLaneX}
+              decisionFeedback={decisionFeedback}
+              tradeHistory={tradeHistory}
+            />
+          </div>
+
+          {/* Right: Bullion & Pause Controls */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {hasShield && (
+              <div className="bg-blue-600/80 border border-blue-400 text-white p-1.5 rounded-xl shadow">
+                <Shield className="w-3.5 h-3.5 text-blue-200" />
+              </div>
+            )}
+            {hasMagnet && (
+              <div className="bg-purple-600/80 border border-purple-400 text-white p-1.5 rounded-xl shadow">
+                <Magnet className="w-3.5 h-3.5 text-purple-200" />
+              </div>
+            )}
+
+            {/* Bullion ($) Display */}
+            <div className="bg-slate-950/80 backdrop-blur-md border border-amber-500/40 rounded-xl px-3 py-1.5 flex items-center gap-1.5 shadow-xl">
+              <div className="w-4 h-4 rounded-full bg-amber-400 border border-amber-200 flex items-center justify-center text-slate-950 font-black text-[10px] shadow-inner">
+                $
+              </div>
+              <span className="text-base sm:text-lg font-black text-amber-300 font-mono tabular-nums">
+                {coins}
+              </span>
+            </div>
+
+            {/* Quick Pause */}
+            <button
+              onClick={onPauseToggle}
+              className="p-1.5 sm:p-2 rounded-xl bg-slate-950/80 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white transition backdrop-blur-md shadow-xl cursor-pointer"
+              title="Pause Run (P or Esc)"
+            >
+              <Pause className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
-        {/* Center: Active Powerup Banner */}
+        {/* Active Powerup Banner (centered underneath if active) */}
         {powerupMessage && (
-          <div className="bg-emerald-500 text-slate-950 font-bold px-4 py-1.5 rounded-full shadow-lg border border-emerald-300 text-xs tracking-wider uppercase animate-bounce flex items-center gap-2">
-            <Zap className="w-4 h-4 text-slate-950 fill-slate-950" />
+          <div className="self-center bg-emerald-500/90 backdrop-blur-md text-slate-950 font-bold px-3.5 py-1 rounded-full shadow-lg border border-emerald-300 text-xs tracking-wider uppercase animate-bounce flex items-center gap-1.5 mt-1">
+            <Zap className="w-3.5 h-3.5 text-slate-950 fill-slate-950" />
             <span>{powerupMessage}</span>
           </div>
         )}
+      </div>
 
-        {/* Coins & Quick Action Buttons */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          {hasShield && (
-            <div className="bg-blue-600/90 border border-blue-400 text-white p-2 rounded-xl shadow flex items-center gap-1">
-              <Shield className="w-4 h-4 text-blue-200" />
-            </div>
-          )}
-          {hasMagnet && (
-            <div className="bg-purple-600/90 border border-purple-400 text-white p-2 rounded-xl shadow flex items-center gap-1">
-              <Magnet className="w-4 h-4 text-purple-200" />
-            </div>
-          )}
+      {/* Center Paused Overlay Menu */}
+      {isPaused && (
+        <div className="self-center my-auto pointer-events-auto bg-slate-950/95 backdrop-blur-md border-2 border-amber-500/80 rounded-3xl p-6 sm:p-8 max-w-sm w-full text-center shadow-2xl z-30">
+          <div className="w-12 h-12 mx-auto mb-3 rounded-2xl bg-amber-950/60 border border-amber-400/50 flex items-center justify-center">
+            <Pause className="w-6 h-6 text-amber-400" />
+          </div>
+          <h2 className="text-2xl font-black text-white uppercase tracking-widest mb-1">Tomb Halted</h2>
+          <p className="text-slate-400 text-xs mb-5">Egyptian Temple Runner Paused</p>
 
-          {/* Bullion / Coins Display */}
-          <div className="bg-slate-900/90 border border-amber-500/50 rounded-xl px-3 py-2 flex items-center gap-1.5 shadow-lg">
-            <div className="w-5 h-5 rounded-full bg-amber-400 border border-amber-200 flex items-center justify-center text-slate-950 font-black text-xs shadow-inner">
-              $
+          {/* Active Runner Display */}
+          <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-3 mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2.5 text-left">
+              <div className="w-10 h-10 rounded-xl bg-slate-950 border border-amber-400/60 overflow-hidden shrink-0">
+                <img
+                  src={getDiceBearAvatarUrl(adventurer.seed)}
+                  alt={adventurer.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-white uppercase tracking-wider">
+                  {adventurer.name}
+                </div>
+                <div className="text-[10px] text-amber-400 font-medium">
+                  {adventurer.perk}
+                </div>
+              </div>
             </div>
-            <span className="text-base sm:text-lg font-black text-amber-300 font-mono tabular-nums">
-              {coins}
-            </span>
+            <button
+              onClick={() => {
+                onOpenAdventurerSelect();
+              }}
+              className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold transition flex items-center gap-1 cursor-pointer"
+            >
+              <Users className="w-3.5 h-3.5 text-amber-400" />
+              <span>Change</span>
+            </button>
           </div>
 
-          {/* Camera View Toggle */}
-          <button
-            onClick={onToggleCamera}
-            className={`p-2 sm:p-2.5 rounded-xl border transition active:scale-95 flex items-center gap-1 cursor-pointer ${
-              cameraMode === 'front'
-                ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300'
-                : 'bg-slate-900/90 border-slate-700 text-slate-200 hover:text-white hover:bg-slate-800'
-            }`}
-            title={`Camera: ${cameraMode.toUpperCase()} (Key C)`}
-          >
-            <Camera className="w-4 h-4 sm:w-5 sm:h-5" />
-          </button>
+          {/* Quick Settings: Camera & Sound */}
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            <button
+              onClick={onToggleCamera}
+              className="py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white transition flex items-center justify-center gap-2 text-xs font-bold cursor-pointer"
+              title="Toggle Camera View (Key C)"
+            >
+              <Camera className="w-4 h-4 text-amber-400" />
+              <span className="capitalize">{cameraMode} Cam</span>
+            </button>
+            <button
+              onClick={handleToggleMute}
+              className="py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white transition flex items-center justify-center gap-2 text-xs font-bold cursor-pointer"
+              title="Toggle Audio (Key M)"
+            >
+              {isMuted ? (
+                <>
+                  <VolumeX className="w-4 h-4 text-rose-400" />
+                  <span>Unmute</span>
+                </>
+              ) : (
+                <>
+                  <Volume2 className="w-4 h-4 text-amber-400" />
+                  <span>Audio On</span>
+                </>
+              )}
+            </button>
+          </div>
 
-          {/* Mute button */}
-          <button
-            onClick={handleToggleMute}
-            className="p-2 sm:p-2.5 rounded-xl bg-slate-900/90 border border-slate-700 text-slate-200 hover:text-white hover:bg-slate-800 transition active:scale-95 cursor-pointer"
-            title={isMuted ? 'Unmute' : 'Mute'}
-          >
-            {isMuted ? <VolumeX className="w-4 h-4 sm:w-5 sm:h-5" /> : <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" />}
-          </button>
+          {/* Controls Reminder */}
+          <div className="bg-slate-900/60 rounded-xl p-2.5 mb-5 text-[11px] text-slate-400 text-left font-mono">
+            <div className="text-amber-400 font-bold mb-1">EGYPTIAN TEMPLE CONTROLS:</div>
+            <div>• <span className="text-white">A / D or ← / →</span>: Steer Left / Right Tomb Passage</div>
+            <div>• <span className="text-white">Space / Up / Click</span>: Jump</div>
+            <div>• <span className="text-white">S / Down</span>: Slide</div>
+          </div>
 
-          {/* Pause button */}
-          <button
-            onClick={onPauseToggle}
-            className="p-2 sm:p-2.5 rounded-xl bg-slate-900/90 border border-slate-700 text-slate-200 hover:text-white hover:bg-slate-800 transition active:scale-95 cursor-pointer"
-            title={isPaused ? 'Resume' : 'Pause'}
-          >
-            {isPaused ? <Play className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" /> : <Pause className="w-4 h-4 sm:w-5 sm:h-5" />}
-          </button>
-
-          {/* Quick Restart */}
-          <button
-            onClick={onRestart}
-            className="p-2 sm:p-2.5 rounded-xl bg-slate-900/90 border border-slate-700 text-slate-200 hover:text-white hover:bg-slate-800 transition active:scale-95 cursor-pointer"
-            title="Restart Run"
-          >
-            <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
-          </button>
-        </div>
-      </div>
-
-      {/* Main Feature: In-Front Floating Screen with Stock Market Queries */}
-      <div className="w-full flex justify-center my-auto px-2 pointer-events-auto z-20">
-        <TradingScreen
-          currentQuery={currentQuery}
-          portfolioValue={portfolioValue}
-          startingCapital={startingCapital}
-          streak={streak}
-          currentLaneX={currentLaneX}
-          decisionFeedback={decisionFeedback}
-          tradeHistory={tradeHistory}
-          onChooseYes={onChooseYes}
-          onChooseNo={onChooseNo}
-        />
-      </div>
-
-      {/* Center Paused Overlay */}
-      {isPaused && (
-        <div className="self-center my-auto pointer-events-auto bg-slate-950/95 border-2 border-emerald-500 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl z-30">
-          <h2 className="text-2xl font-black text-emerald-400 uppercase tracking-widest mb-1">Trading Halted</h2>
-          <p className="text-slate-300 text-sm mb-6">Market paused. Resume when ready.</p>
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
             <button
               onClick={onPauseToggle}
-              className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl tracking-wider transition uppercase shadow-lg cursor-pointer"
+              className="w-full py-3 bg-linear-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black rounded-xl tracking-wider transition uppercase shadow-lg flex items-center justify-center gap-2 cursor-pointer"
             >
-              Resume Trading
+              <Play className="w-4 h-4 fill-slate-950" />
+              <span>Resume Run</span>
             </button>
             <button
               onClick={onRestart}
-              className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl tracking-wider transition uppercase cursor-pointer"
+              className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white font-bold rounded-xl tracking-wider transition uppercase flex items-center justify-center gap-2 text-xs cursor-pointer"
             >
-              Restart Bull Run
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Restart Run</span>
             </button>
           </div>
         </div>
       )}
 
-      {/* Sleek Floating Bottom Control Strip */}
-      <div className="w-full max-w-xl mx-auto pointer-events-auto flex flex-col items-center gap-1.5">
-        <div className="flex items-center justify-between w-full bg-slate-950/80 border border-slate-800 rounded-2xl p-1.5 shadow-xl">
-          <button
-            onClick={onMoveLeft}
-            className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 active:scale-95 transition flex items-center gap-1 text-xs font-bold cursor-pointer"
-            title="Steer Left (YES / BUY)"
-          >
-            <ArrowLeft className="w-4 h-4 text-emerald-400" />
-            <span>Left (YES)</span>
-          </button>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onJump}
-              className="px-4 py-2 rounded-xl bg-emerald-600/50 hover:bg-emerald-600/70 border border-emerald-400/60 text-emerald-100 active:scale-95 transition flex items-center gap-1 text-xs font-black uppercase tracking-wider cursor-pointer shadow"
-              title="Jump (Tap or Click Screen)"
-            >
-              <ArrowUp className="w-4 h-4 text-emerald-300" />
-              <span>Jump</span>
-            </button>
-            <button
-              onClick={onSlide}
-              className="px-3 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-300 active:scale-95 transition flex items-center gap-1 text-xs font-bold cursor-pointer"
-              title="Slide"
-            >
-              <ArrowDown className="w-3.5 h-3.5 text-slate-400" />
-              <span>Slide</span>
-            </button>
-          </div>
-          <button
-            onClick={onMoveRight}
-            className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 active:scale-95 transition flex items-center gap-1 text-xs font-bold cursor-pointer"
-            title="Steer Right (NO / PASS)"
-          >
-            <span>Right (NO)</span>
-            <ArrowRight className="w-4 h-4 text-rose-400" />
-          </button>
-        </div>
-      </div>
+      {/* Intentionally completely open bottom area: NO bottom navigation buttons! */}
+      <div className="w-full pointer-events-none" />
     </div>
   );
 };
