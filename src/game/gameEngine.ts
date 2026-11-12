@@ -1,15 +1,25 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { createAdventurer, createChasingSpider, createGoldenIdol, AdventurerModel, SpiderModel } from './models';
-import { TrackManager } from './trackManager';
+import { TrackManager, ForkInstance } from './trackManager';
 import { CharacterController } from './characterController';
+import { FpsCorridor } from './fpsCorridor';
 import { sound } from './audio';
 import { AdventurerProfile, getDiceBearAvatarUrl, loadAvatarPair, loadAvatarToCanvas } from './adventurers';
+import { MarketQuery } from './queries';
 
 export interface GameEngineCallbacks {
   onScoreUpdate: (stats: { distance: number; coins: number; score: number }) => void;
-  onGameOver: (stats: { distance: number; coins: number; score: number }) => void;
+  onGameOver: (stats: { distance: number; coins: number; score: number; reason?: string }) => void;
   onPowerupMessage: (msg: string) => void;
+  onForkApproaching?: (fork: ForkInstance) => void;
+  onForkDecision?: (result: {
+    survived: boolean;
+    profit: number;
+    feedback: string;
+    query: MarketQuery;
+    chosenSide: 'left' | 'right';
+  }) => void;
 }
 
 export class GameEngine {
@@ -22,6 +32,7 @@ export class GameEngine {
 
   // Game Systems
   public trackManager: TrackManager;
+  public corridor: FpsCorridor;
   public adventurer: AdventurerModel;
   public spider: SpiderModel;
   public player: CharacterController;
@@ -79,19 +90,19 @@ export class GameEngine {
 
     container.appendChild(this.renderer.domElement);
 
-    // 3. Scene & Atmospheric Horizon Fog
+    // 3. Scene & Atmospheric Fog matching Keith Clark CSS FPS (rgb(10, 25, 10))
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x131a15);
-    this.scene.fog = new THREE.FogExp2(0x131a15, 0.016);
+    this.scene.background = new THREE.Color(0x0a190a);
+    this.scene.fog = new THREE.FogExp2(0x0a190a, 0.018);
 
-    // 4. Camera
+    // 4. Camera (perspective matching FPS corridor)
     this.camera = new THREE.PerspectiveCamera(
-      62,
+      64,
       container.clientWidth / container.clientHeight,
       0.1,
-      250
+      400
     );
-    this.camera.position.set(0, 4, -6);
+    this.camera.position.set(0, 3.2, -5.5);
     this.camera.lookAt(0, 1.2, 3);
 
     // 5. Studio Environment Map (RoomEnvironment)
@@ -102,7 +113,10 @@ export class GameEngine {
     // 6. Balanced Lighting Rig
     this.setupLighting();
 
-    // 7. Track & Actors
+    // 7. Keith Clark CSS FPS 3D Corridor (wall.jpg, ceil.jpg, floor.jpg, and dark green shadows)
+    this.corridor = new FpsCorridor(this.scene);
+
+    // 8. Track & Actors
     this.trackManager = new TrackManager(this.scene);
     this.adventurer = createAdventurer();
     this.spider = createChasingSpider();
@@ -140,12 +154,15 @@ export class GameEngine {
     if (!this.isSoftwareGl) {
       this.renderer.compile(this.scene, this.camera);
     }
+
+    // Start background render loop
+    this.loop();
   }
 
   private setupLighting() {
-    // Key Sun Light
-    const sunLight = new THREE.DirectionalLight(0xfff0d0, 2.2);
-    sunLight.position.set(20, 35, 15);
+    // Key Sun Light (Cool crisp white)
+    const sunLight = new THREE.DirectionalLight(0xf1f5f9, 2.4);
+    sunLight.position.set(18, 32, 14);
     sunLight.castShadow = !this.isSoftwareGl;
     if (!this.isSoftwareGl) {
       sunLight.shadow.mapSize.width = 1024;
@@ -161,12 +178,12 @@ export class GameEngine {
     }
     this.scene.add(sunLight);
 
-    // Cool Sky & Lush Ground Hemisphere Fill
-    const hemiLight = new THREE.HemisphereLight(0x7bc482, 0x1f2e22, 1.1);
+    // Bullish Green & Financial Blue Hemisphere Lighting
+    const hemiLight = new THREE.HemisphereLight(0x38bdf8, 0x064e3b, 1.2);
     this.scene.add(hemiLight);
 
-    // Warm Ambient
-    const ambientLight = new THREE.AmbientLight(0x222920, 0.8);
+    // Subtle Ambient
+    const ambientLight = new THREE.AmbientLight(0x0f172a, 0.9);
     this.scene.add(ambientLight);
   }
 
@@ -174,19 +191,10 @@ export class GameEngine {
     const pedestalGroup = new THREE.Group();
     pedestalGroup.position.set(0, 0, -3.5);
 
-    // Stone altar
-    const altar = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.2, 1.4, 1.2, 12),
-      new THREE.MeshStandardMaterial({ color: 0x474036, roughness: 0.9 })
-    );
-    altar.position.y = 0.6;
-    altar.castShadow = true;
-    pedestalGroup.add(altar);
-
-    // Golden Idol
-    const idol = createGoldenIdol();
-    idol.position.y = 1.2;
-    pedestalGroup.add(idol);
+    // Wall Street Charging Bull Trophy on Trading Altar
+    const bullIdol = createGoldenIdol();
+    bullIdol.position.y = 0.2;
+    pedestalGroup.add(bullIdol);
 
     this.idolPedestal = pedestalGroup;
     this.scene.add(pedestalGroup);
@@ -268,7 +276,6 @@ export class GameEngine {
     this.isPaused = false;
     this.clock.start();
     sound.startJungleDrums();
-    this.loop();
   }
 
   public pause() {
@@ -311,6 +318,18 @@ export class GameEngine {
         backCanvas
       );
     });
+  }
+
+  // Steer runner into Left Road or Right Road tunnel
+  public selectTunnel(side: 'left' | 'right') {
+    if (side === 'left') {
+      this.player.targetLaneX = -this.trackManager.laneOffset;
+      this.player.currentLane = -1;
+    } else {
+      this.player.targetLaneX = this.trackManager.laneOffset;
+      this.player.currentLane = 1;
+    }
+    sound.playTurn();
   }
 
   public cameraMode: 'rear' | 'front' | 'side' = 'rear';
@@ -362,6 +381,11 @@ export class GameEngine {
 
     const targetPos = playerPos.clone().add(offsetVector);
 
+    // Subtle organic camera sway inspired by Keith Clark CSS FPS @keyframes move
+    const time = this.clock.getElapsedTime();
+    targetPos.x += Math.sin(time * 0.45) * 0.12;
+    targetPos.y += Math.cos(time * 0.6) * 0.08;
+
     // Smooth exponential damping
     this.cameraCurrentPos.lerp(targetPos, Math.min(1, dt * 8.5));
     this.cameraCurrentLookAt.lerp(lookAtTarget, Math.min(1, dt * 9.5));
@@ -371,17 +395,71 @@ export class GameEngine {
   }
 
   private loop = () => {
-    if (!this.isRunning) return;
+    const dt = Math.min(this.clock.getDelta(), 0.1);
+    const time = this.clock.getElapsedTime();
 
-    if (!this.isPaused) {
-      const dt = Math.min(this.clock.getDelta(), 0.1);
-      const time = this.clock.getElapsedTime();
-
+    if (this.isRunning && !this.isPaused) {
       // Update character & spider
       this.player.update(dt, time);
 
       // Update procedural track
       this.trackManager.update(this.player.position, time);
+
+      // Evaluate Tunnel Fork Decisions (End-of-Tunnel Query)
+      for (const fork of this.trackManager.forks) {
+        const distToFork = fork.forkZ - this.player.position.z;
+        if (distToFork > -5 && distToFork < 40) {
+          this.callbacks.onForkApproaching?.(fork);
+        }
+
+        if (!fork.cleared && this.player.position.z >= fork.decisionLineZ) {
+          fork.cleared = true;
+          const laneX = this.player.currentLaneX;
+
+          let chosenSide: 'left' | 'right' | 'center' = 'center';
+          if (laneX < -0.45) {
+            chosenSide = 'left';
+          } else if (laneX > 0.45) {
+            chosenSide = 'right';
+          }
+
+          if (chosenSide === 'center') {
+            this.callbacks.onForkDecision?.({
+              survived: false,
+              profit: -fork.query.profit,
+              feedback: 'CRASHED INTO CENTER DIVIDER! Hesitation killed the portfolio.',
+              query: fork.query,
+              chosenSide: 'left',
+            });
+            this.player.die('CRASHED INTO FORK DIVIDER! Hesitation killed the fund. You hit the concrete crash barrier dead-center.');
+            break;
+          }
+
+          const isCorrect = (chosenSide === fork.query.correctSide);
+          if (isCorrect) {
+            sound.playCoin();
+            this.player.score += fork.query.profit;
+            this.callbacks.onForkDecision?.({
+              survived: true,
+              profit: fork.query.profit,
+              feedback: fork.query.successReason,
+              query: fork.query,
+              chosenSide,
+            });
+          } else {
+            sound.playCrash();
+            this.callbacks.onForkDecision?.({
+              survived: false,
+              profit: -fork.query.profit,
+              feedback: fork.query.deathReason,
+              query: fork.query,
+              chosenSide,
+            });
+            this.player.die(fork.query.deathReason);
+            break;
+          }
+        }
+      }
 
       // Update camera
       this.updateCamera(dt);
@@ -395,6 +473,13 @@ export class GameEngine {
         coins: this.player.coinsCollected,
         score: Math.floor(this.player.score),
       });
+    } else {
+      this.updateCamera(dt);
+    }
+
+    // Animate Keith Clark CSS FPS 3D corridor (endless modular wrapping around runner)
+    if (this.corridor) {
+      this.corridor.update(this.player.position.z, time);
     }
 
     this.renderer.render(this.scene, this.camera);
@@ -433,6 +518,9 @@ export class GameEngine {
       p.mesh.geometry.dispose();
       (p.mesh.material as THREE.Material).dispose();
     });
+    if (this.corridor) {
+      this.corridor.dispose(this.scene);
+    }
     this.renderer.dispose();
   }
 }

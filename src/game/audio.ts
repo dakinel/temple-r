@@ -250,6 +250,28 @@ class SoundSystem {
     });
   }
 
+  // NYSE Trading Bell Opening Chime
+  public playTradingBell() {
+    if (!this.enabled) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    [0, 0.14, 0.28, 0.42].forEach((offset) => {
+      if (!this.ctx) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(1244.51, t + offset);
+      gain.gain.setValueAtTime(0.25, t + offset);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + offset + 0.35);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(t + offset);
+      osc.stop(t + offset + 0.36);
+    });
+  }
+
   // Procedural jungle rhythm drum beat (plays while running)
   public startJungleDrums() {
     if (this.musicInterval) return;

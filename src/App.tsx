@@ -6,12 +6,15 @@ import { GameOverModal } from './components/GameOverModal';
 import { AdventurerSelector } from './components/AdventurerSelector';
 import { AdventurerProfile, ADVENTURER_ROSTER } from './game/adventurers';
 import { sound } from './game/audio';
+import { MARKET_QUERIES, MarketQuery } from './game/queries';
+
+const STARTING_CAPITAL = 100000;
 
 export default function App() {
   const canvasMountRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
 
-  // Adventurer Character & DiceBear Avatar Face State
+  // Adventurer Character
   const [adventurer, setAdventurer] = useState<AdventurerProfile>(() => {
     try {
       const saved = localStorage.getItem('templerun_adventurer');
@@ -27,11 +30,77 @@ export default function App() {
   const [stats, setStats] = useState({ distance: 0, coins: 0, score: 0 });
   const [highScore, setHighScore] = useState<number>(() => {
     const saved = localStorage.getItem('templerun_3d_highscore');
-    return saved ? parseInt(saved, 10) : 0;
+    return saved ? parseInt(saved, 10) : 150000;
   });
   const [isNewHigh, setIsNewHigh] = useState(false);
   const [powerupMessage, setPowerupMessage] = useState<string | null>(null);
   const [cameraMode, setCameraMode] = useState<'rear' | 'front' | 'side'>('rear');
+
+  // Stock Market Trading Screen & Decision State
+  const [queryIndex, setQueryIndex] = useState(0);
+  const [portfolioValue, setPortfolioValue] = useState(STARTING_CAPITAL);
+  const [streak, setStreak] = useState(0);
+  const [currentLaneX, setCurrentLaneX] = useState(0);
+  const [decisionFeedback, setDecisionFeedback] = useState<{
+    text: string;
+    profit: number;
+    isYes: boolean;
+  } | null>(null);
+  const [tradeHistory, setTradeHistory] = useState<
+    Array<{ ticker: string; action: string; profit: number }>
+  >([]);
+
+  const queryIndexRef = useRef(queryIndex);
+  queryIndexRef.current = queryIndex;
+  const decisionCooldownRef = useRef(0);
+
+  // Execute Trading Decision (Move Left = YES/BUY, Move Right = NO/PASS)
+  const handleMakeDecision = useCallback((isYes: boolean) => {
+    const now = performance.now();
+    if (now - decisionCooldownRef.current < 800) return; // Prevent double trigger
+    decisionCooldownRef.current = now;
+
+    const currentQ = MARKET_QUERIES[queryIndexRef.current];
+    const profit = isYes ? currentQ.yesProfit : currentQ.noProfit;
+    const text = isYes ? currentQ.yesFeedback : currentQ.noFeedback;
+    const action = isYes ? currentQ.yesAction : currentQ.noAction;
+
+    if (profit >= 0) {
+      setStreak((s) => s + 1);
+      sound.playCoin();
+    } else {
+      setStreak(0);
+      sound.playCrash();
+    }
+
+    setPortfolioValue((prev) => {
+      const updated = Math.max(0, prev + profit);
+      if (updated > highScore) {
+        setHighScore(updated);
+        localStorage.setItem('templerun_3d_highscore', updated.toString());
+        setIsNewHigh(true);
+      }
+      return updated;
+    });
+
+    setStats((prev) => ({
+      ...prev,
+      score: Math.max(0, prev.score + profit),
+    }));
+
+    setDecisionFeedback({ text, profit, isYes });
+    setTimeout(() => {
+      setDecisionFeedback(null);
+    }, 2400);
+
+    setTradeHistory((prev) => [
+      ...prev.slice(-3),
+      { ticker: currentQ.ticker, action, profit },
+    ]);
+
+    // Advance to next stock query
+    setQueryIndex((prev) => (prev + 1) % MARKET_QUERIES.length);
+  }, [highScore]);
 
   // Initialize GameEngine once
   useEffect(() => {
@@ -40,6 +109,22 @@ export default function App() {
     const engine = new GameEngine(canvasMountRef.current, {
       onScoreUpdate: (newStats) => {
         setStats(newStats);
+        if (engineRef.current) {
+          const p = engineRef.current.player;
+          setCurrentLaneX(p.currentLaneX);
+
+          // Check if player is passing through a 3D decision gate
+          const gates = engineRef.current.trackManager.decisionGates;
+          for (const gate of gates) {
+            if (!gate.cleared && Math.abs(p.position.z - gate.worldZ) < 1.4) {
+              gate.cleared = true;
+              // Left lane = YES, Right lane = NO
+              const isYes = p.currentLaneX <= 0;
+              handleMakeDecision(isYes);
+              break;
+            }
+          }
+        }
       },
       onGameOver: (finalStats) => {
         setGamePhase('gameover');
@@ -62,7 +147,6 @@ export default function App() {
       },
     });
 
-    // Apply active adventurer face texture and colors
     engine.setAdventurer(adventurer);
     engineRef.current = engine;
 
@@ -70,9 +154,8 @@ export default function App() {
       engine.dispose();
       engineRef.current = null;
     };
-  }, []);
+  }, [handleMakeDecision]);
 
-  // Update 3D model whenever adventurer changes
   const handleSelectAdventurer = (profile: AdventurerProfile) => {
     setAdventurer(profile);
     try {
@@ -89,7 +172,59 @@ export default function App() {
     setCameraMode(nextMode);
   }, []);
 
-  // Keyboard controls
+  // 1. SCROLL WHEEL CONTROLS (Scroll Left / Right to Steer & Choose YES/NO)
+  useEffect(() => {
+    let wheelAccumulator = 0;
+    let lastWheelTime = 0;
+
+    const handleWheel = (e: WheelEvent) => {
+      if (gamePhase !== 'playing' || !engineRef.current) return;
+      e.preventDefault();
+
+      const player = engineRef.current.player;
+      const now = performance.now();
+
+      const dx = e.deltaX;
+      const dy = e.deltaY;
+
+      if (Math.abs(dx) > 3) {
+        player.steer(dx * 0.016);
+        if (Math.abs(dx) > 22 && now - lastWheelTime > 160) {
+          if (dx > 0) player.moveRight();
+          else player.moveLeft();
+          lastWheelTime = now;
+        }
+      } else if (Math.abs(dy) > 12) {
+        wheelAccumulator += dy;
+        if (Math.abs(wheelAccumulator) > 35 && now - lastWheelTime > 160) {
+          if (wheelAccumulator > 0) {
+            player.moveRight();
+          } else {
+            player.moveLeft();
+          }
+          wheelAccumulator = 0;
+          lastWheelTime = now;
+        }
+      }
+    };
+
+    window.addEventListener('wheel', handleWheel, { passive: false });
+    return () => window.removeEventListener('wheel', handleWheel);
+  }, [gamePhase]);
+
+  // 2. TAP / CLICK TO JUMP
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (gamePhase !== 'playing' || !engineRef.current) return;
+
+    const target = e.target as HTMLElement;
+    if (target.closest('button, [data-interactive="true"], a, input')) {
+      return;
+    }
+
+    engineRef.current.player.jump();
+  };
+
+  // 3. KEYBOARD CONTROLS (A / Left = YES, D / Right = NO, Space / Up = Jump)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (gamePhase !== 'playing' || !engineRef.current) return;
@@ -97,25 +232,17 @@ export default function App() {
       const player = engineRef.current.player;
 
       switch (e.code) {
-        // 90-Degree Turns at Junctions
         case 'ArrowLeft':
-          e.preventDefault();
-          player.turnLeft();
-          break;
-        case 'ArrowRight':
-          e.preventDefault();
-          player.turnRight();
-          break;
-
-        // Lane Shifting
         case 'KeyA':
+          e.preventDefault();
           player.moveLeft();
           break;
+        case 'ArrowRight':
         case 'KeyD':
+          e.preventDefault();
           player.moveRight();
           break;
 
-        // Jump
         case 'ArrowUp':
         case 'KeyW':
         case 'Space':
@@ -123,26 +250,22 @@ export default function App() {
           player.jump();
           break;
 
-        // Slide
         case 'ArrowDown':
         case 'KeyS':
           e.preventDefault();
           player.slide();
           break;
 
-        // Pause
         case 'KeyP':
         case 'Escape':
           e.preventDefault();
           togglePause();
           break;
 
-        // Mute
         case 'KeyM':
           sound.toggleMute();
           break;
 
-        // Toggle Camera Perspective (Rear / Front Face / Action)
         case 'KeyC':
           handleToggleCamera();
           break;
@@ -153,7 +276,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [gamePhase, isPaused, handleToggleCamera]);
 
-  // Touch Swipe controls for mobile
+  // 4. TOUCH CONTROLS
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
 
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -171,50 +294,60 @@ export default function App() {
       return;
     }
 
+    const target = e.target as HTMLElement;
+    if (target.closest('button, [data-interactive="true"], a, input')) {
+      touchStartRef.current = null;
+      return;
+    }
+
     const dx = e.changedTouches[0].clientX - touchStartRef.current.x;
     const dy = e.changedTouches[0].clientY - touchStartRef.current.y;
     const absX = Math.abs(dx);
     const absY = Math.abs(dy);
     const duration = Date.now() - touchStartRef.current.time;
 
-    // Minimum swipe threshold (px)
-    if (Math.max(absX, absY) > 28 && duration < 500) {
-      const player = engineRef.current.player;
+    const player = engineRef.current.player;
+
+    if (duration < 250 && Math.max(absX, absY) < 18) {
+      player.jump();
+    } else if (Math.max(absX, absY) > 24) {
       if (absX > absY) {
-        // Horizontal swipe: check if fast big swipe -> turn 90 deg, otherwise lane change
-        if (absX > 60) {
-          if (dx > 0) {
-            player.turnRight();
-          } else {
-            player.turnLeft();
-          }
-        } else {
-          if (dx > 0) {
-            player.moveRight();
-          } else {
-            player.moveLeft();
-          }
-        }
+        if (dx > 0) player.moveRight();
+        else player.moveLeft();
       } else {
-        // Vertical swipe
-        if (dy < 0) {
-          player.jump();
-        } else {
-          player.slide();
-        }
+        if (dy < 0) player.jump();
+        else player.slide();
       }
     }
+
     touchStartRef.current = null;
   };
 
-  // Actions
+  // Direct Button Handlers for Trading Screen
+  const handleChooseYesButton = () => {
+    engineRef.current?.player.moveLeft();
+    handleMakeDecision(true);
+  };
+
+  const handleChooseNoButton = () => {
+    engineRef.current?.player.moveRight();
+    handleMakeDecision(false);
+  };
+
+  // Start / Restart Game
   const startGame = () => {
     if (engineRef.current) {
       engineRef.current.restart();
       engineRef.current.setAdventurer(adventurer);
       engineRef.current.start();
+      sound.playTradingBell();
     }
     setStats({ distance: 0, coins: 0, score: 0 });
+    setPortfolioValue(STARTING_CAPITAL);
+    setStreak(0);
+    setTradeHistory([]);
+    setDecisionFeedback(null);
+    setQueryIndex(0);
     setIsNewHigh(false);
     setIsPaused(false);
     setGamePhase('playing');
@@ -230,8 +363,14 @@ export default function App() {
     if (engineRef.current) {
       engineRef.current.restart();
       engineRef.current.setAdventurer(adventurer);
+      sound.playTradingBell();
     }
     setStats({ distance: 0, coins: 0, score: 0 });
+    setPortfolioValue(STARTING_CAPITAL);
+    setStreak(0);
+    setTradeHistory([]);
+    setDecisionFeedback(null);
+    setQueryIndex(0);
     setIsNewHigh(false);
     setIsPaused(false);
     setGamePhase('playing');
@@ -245,19 +384,22 @@ export default function App() {
     }
   };
 
+  const currentQ = MARKET_QUERIES[queryIndex];
+
   return (
     <div
-      className="relative w-screen h-screen overflow-hidden bg-stone-950 font-sans"
+      className="relative w-screen h-screen overflow-hidden bg-slate-950 font-sans cursor-pointer select-none"
+      onPointerDown={handlePointerDown}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      {/* 3D WebGL Canvas Viewport (100% Unobstructed) */}
-      <div ref={canvasMountRef} className="absolute inset-0 z-0 w-full h-full" />
+      {/* 3D WebGL Canvas Viewport (Keith Clark CSS FPS Corridor, 100% full screen) */}
+      <div ref={canvasMountRef} className="absolute inset-0 z-0 w-full h-full pointer-events-none" />
 
-      {/* In-Game HUD overlay */}
+      {/* In-Game HUD & In-Front Trading Screen */}
       {gamePhase === 'playing' && (
         <GameHUD
-          score={stats.score}
+          score={portfolioValue - STARTING_CAPITAL}
           coins={stats.coins}
           distance={stats.distance}
           isPaused={isPaused}
@@ -266,12 +408,23 @@ export default function App() {
           hasMagnet={(engineRef.current?.player.powerups.magnetTimer ?? 0) > 0}
           adventurer={adventurer}
           cameraMode={cameraMode}
+          // Stock Market Query Screen
+          currentQuery={currentQ}
+          portfolioValue={portfolioValue}
+          startingCapital={STARTING_CAPITAL}
+          streak={streak}
+          currentLaneX={currentLaneX}
+          decisionFeedback={decisionFeedback}
+          tradeHistory={tradeHistory}
+          onChooseYes={handleChooseYesButton}
+          onChooseNo={handleChooseNoButton}
+          // Handlers
           onOpenAdventurerSelect={() => setIsAdventurerSelectOpen(true)}
           onToggleCamera={handleToggleCamera}
           onPauseToggle={togglePause}
           onRestart={restartGame}
-          onTurnLeft={() => engineRef.current?.player.turnLeft()}
-          onTurnRight={() => engineRef.current?.player.turnRight()}
+          onTurnLeft={() => engineRef.current?.player.moveLeft()}
+          onTurnRight={() => engineRef.current?.player.moveRight()}
           onMoveLeft={() => engineRef.current?.player.moveLeft()}
           onMoveRight={() => engineRef.current?.player.moveRight()}
           onJump={() => engineRef.current?.player.jump()}
@@ -292,7 +445,11 @@ export default function App() {
       {/* Game Over Screen */}
       {gamePhase === 'gameover' && (
         <GameOverModal
-          stats={stats}
+          stats={{
+            distance: stats.distance,
+            coins: stats.coins,
+            score: portfolioValue,
+          }}
           highScore={highScore}
           isNewHigh={isNewHigh}
           adventurer={adventurer}

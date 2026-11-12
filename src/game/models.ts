@@ -1,5 +1,11 @@
 import * as THREE from 'three';
-import { createCoinTexture, createWoodTexture } from './textures';
+import {
+  createCoinTexture,
+  createCrashBarrierTexture,
+  createMarginCallTexture,
+  createCandlestickTexture,
+  createDiamondTexture,
+} from './textures';
 
 /**
  * 3D procedural models for character, chasing spider demon, track elements, and obstacles.
@@ -936,96 +942,134 @@ export function createChasingSpider(): SpiderModel {
   };
 }
 
-// 3. OBSTACLES: Fallen Tree (Jump over), Stone Fire Gate (Slide under)
+// 3. OBSTACLES: Market Crash Dip Hurdle (Tap/Click Jump Over), Margin Call Laser Arch (Slide Under)
 export function createFallenTreeObstacle(): THREE.Group {
   const group = new THREE.Group();
-  const woodTexture = createWoodTexture();
-  const toonGradient = createToonGradientMap();
+  const crashTexture = createCrashBarrierTexture();
+  const candleTexture = createCandlestickTexture();
 
-  const barkMat = new THREE.MeshToonMaterial({
-    map: woodTexture,
-    gradientMap: toonGradient,
-  });
-  const brokenEndMat = new THREE.MeshToonMaterial({
-    color: 0xb58e5e,
-    gradientMap: toonGradient,
+  // Crash barrier face material
+  const barrierMat = new THREE.MeshStandardMaterial({
+    map: crashTexture,
+    roughness: 0.4,
+    metalness: 0.2,
   });
 
-  const logGeom = new THREE.CylinderGeometry(0.35, 0.4, 3.8, 12);
-  const logMesh = new THREE.Mesh(logGeom, barkMat);
-  logMesh.rotation.z = Math.PI / 2;
-  logMesh.position.y = 0.45;
-  logMesh.castShadow = true;
-  group.add(logMesh);
+  // Candlestick red posts
+  const postMat = new THREE.MeshStandardMaterial({
+    map: candleTexture,
+    roughness: 0.5,
+    metalness: 0.3,
+  });
 
-  const stumpL = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.45, 0.8, 10), brokenEndMat);
-  stumpL.position.set(-1.8, 0.4, 0);
-  stumpL.castShadow = true;
-  group.add(stumpL);
+  // Dark steel base frame
+  const steelMat = new THREE.MeshStandardMaterial({
+    color: 0x1e293b,
+    metalness: 0.8,
+    roughness: 0.3,
+  });
 
-  const stumpR = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.42, 0.8, 10), brokenEndMat);
-  stumpR.position.set(1.8, 0.4, 0);
-  stumpR.castShadow = true;
-  group.add(stumpR);
+  // Glowing red hazard warning lights
+  const redGlowMat = new THREE.MeshStandardMaterial({
+    color: 0xff2222,
+    emissive: 0xff0000,
+    emissiveIntensity: 2.5,
+  });
 
-  const shroomMat = new THREE.MeshToonMaterial({ color: 0xde3525, gradientMap: toonGradient });
-  for (let m = 0; m < 3; m++) {
-    const shroom = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), shroomMat);
-    shroom.position.set(-0.8 + m * 0.7, 0.82, 0.1);
-    group.add(shroom);
-  }
+  // Main Market Dip Crash Bar (height ~0.55m so a click/tap jump clears it cleanly)
+  const barGeom = new THREE.BoxGeometry(3.6, 0.45, 0.3);
+  const barMesh = new THREE.Mesh(barGeom, barrierMat);
+  barMesh.position.y = 0.28;
+  barMesh.castShadow = true;
+  group.add(barMesh);
+
+  // Left & Right Candlestick Stanchions
+  const postL = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 0.85, 12), postMat);
+  postL.position.set(-1.8, 0.42, 0);
+  postL.castShadow = true;
+  group.add(postL);
+
+  const postR = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 0.85, 12), postMat);
+  postR.position.set(1.8, 0.42, 0);
+  postR.castShadow = true;
+  group.add(postR);
+
+  // Flashing red warning beacons on top of posts
+  const beaconL = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 10), redGlowMat);
+  beaconL.position.set(-1.8, 0.88, 0);
+  group.add(beaconL);
+
+  const beaconR = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 10), redGlowMat);
+  beaconR.position.set(1.8, 0.88, 0);
+  group.add(beaconR);
+
+  // Red neon underglow beam
+  const light = new THREE.PointLight(0xff1100, 1.4, 4);
+  light.position.set(0, 0.2, 0);
+  group.add(light);
 
   return group;
 }
 
 export function createSlideGateObstacle(): THREE.Group {
   const group = new THREE.Group();
-  const toonGradient = createToonGradientMap();
+  const marginCallTexture = createMarginCallTexture();
 
-  const stoneMat = new THREE.MeshToonMaterial({
-    color: 0x615a4e,
-    gradientMap: toonGradient,
-  });
-  const spikeMat = new THREE.MeshToonMaterial({
-    color: 0x33302a,
-    gradientMap: toonGradient,
+  const signMat = new THREE.MeshStandardMaterial({
+    map: marginCallTexture,
+    roughness: 0.3,
+    metalness: 0.2,
   });
 
-  const pillarGeom = new THREE.BoxGeometry(0.6, 3.4, 0.6);
-  const leftPillar = new THREE.Mesh(pillarGeom, stoneMat);
-  leftPillar.position.set(-1.8, 1.7, 0);
-  leftPillar.castShadow = true;
-  group.add(leftPillar);
+  const trussMat = new THREE.MeshStandardMaterial({
+    color: 0x334155,
+    metalness: 0.85,
+    roughness: 0.25,
+  });
 
-  const rightPillar = new THREE.Mesh(pillarGeom, stoneMat);
-  rightPillar.position.set(1.8, 1.7, 0);
-  rightPillar.castShadow = true;
-  group.add(rightPillar);
+  const laserMat = new THREE.MeshStandardMaterial({
+    color: 0xf59e0b,
+    emissive: 0xd97706,
+    emissiveIntensity: 3.0,
+  });
 
-  const beamGeom = new THREE.BoxGeometry(4.0, 1.4, 0.7);
-  const beam = new THREE.Mesh(beamGeom, stoneMat);
-  beam.position.set(0, 2.1, 0);
-  beam.castShadow = true;
-  group.add(beam);
+  // High gantry columns
+  const columnGeom = new THREE.BoxGeometry(0.4, 3.6, 0.4);
+  const leftCol = new THREE.Mesh(columnGeom, trussMat);
+  leftCol.position.set(-1.85, 1.8, 0);
+  leftCol.castShadow = true;
+  group.add(leftCol);
 
-  for (let s = -1.2; s <= 1.2; s += 0.4) {
-    const spike = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.45, 6), spikeMat);
-    spike.position.set(s, 1.2, 0);
-    spike.rotation.x = Math.PI;
-    group.add(spike);
+  const rightCol = new THREE.Mesh(columnGeom, trussMat);
+  rightCol.position.set(1.85, 1.8, 0);
+  rightCol.castShadow = true;
+  group.add(rightCol);
+
+  // Heavy "MARGIN CALL" overhead signboard
+  const signGeom = new THREE.BoxGeometry(3.9, 1.3, 0.25);
+  const sign = new THREE.Mesh(signGeom, signMat);
+  sign.position.set(0, 2.2, 0);
+  sign.castShadow = true;
+  group.add(sign);
+
+  // Warning amber lasers hanging under the sign
+  for (let s = -1.4; s <= 1.4; s += 0.5) {
+    const laser = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.5, 8), laserMat);
+    laser.position.set(s, 1.35, 0);
+    group.add(laser);
   }
 
   return group;
 }
 
-// 4. GOLD COIN MODEL
+// 4. GOLD BULLION DOLLAR COIN MODEL ($)
 export function createGoldCoin(): THREE.Mesh {
   const coinTex = createCoinTexture();
-  const toonGradient = createToonGradientMap();
-  const coinMat = new THREE.MeshToonMaterial({
+  const coinMat = new THREE.MeshStandardMaterial({
     map: coinTex,
-    color: 0xffea48,
-    gradientMap: toonGradient,
+    color: 0xfff066,
+    metalness: 0.88,
+    roughness: 0.18,
   });
   const geom = new THREE.CylinderGeometry(0.38, 0.38, 0.08, 24);
   const coin = new THREE.Mesh(geom, coinMat);
@@ -1035,37 +1079,83 @@ export function createGoldCoin(): THREE.Mesh {
   return coin;
 }
 
-// 5. GOLDEN IDOL
+// 5. WALL STREET CHARGING BULL STATUE (Start Pedestal Trophy)
 export function createGoldenIdol(): THREE.Group {
   const group = new THREE.Group();
-  const toonGradient = createToonGradientMap();
-  const goldMat = new THREE.MeshToonMaterial({
+  const goldMat = new THREE.MeshStandardMaterial({
     color: 0xffd700,
-    gradientMap: toonGradient,
-  });
-  const rubyMat = new THREE.MeshStandardMaterial({
-    color: 0xd61c38,
-    emissive: 0x660015,
-    roughness: 0.2,
+    metalness: 0.92,
+    roughness: 0.16,
   });
 
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.4, 0.18, 16), goldMat);
+  const greenGlowMat = new THREE.MeshStandardMaterial({
+    color: 0x10b981,
+    emissive: 0x059669,
+    emissiveIntensity: 2.5,
+  });
+
+  // Solid dark granite trading floor pedestal
+  const base = new THREE.Mesh(
+    new THREE.BoxGeometry(1.6, 0.35, 2.0),
+    new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.7, metalness: 0.4 })
+  );
+  base.position.y = 0.18;
   group.add(base);
 
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.3, 0.45, 12), goldMat);
-  body.position.y = 0.3;
-  group.add(body);
+  // Wall Street Charging Bull Muscular Torso
+  const bullTorso = new THREE.Mesh(new THREE.SphereGeometry(0.42, 16, 14), goldMat);
+  bullTorso.scale.set(1.1, 1.0, 1.6);
+  bullTorso.position.set(0, 0.68, 0);
+  bullTorso.castShadow = true;
+  group.add(bullTorso);
 
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 16), goldMat);
-  head.position.y = 0.65;
-  group.add(head);
+  // Shoulder Hump
+  const bullHump = new THREE.Mesh(new THREE.SphereGeometry(0.32, 14, 12), goldMat);
+  bullHump.position.set(0, 0.95, 0.25);
+  bullHump.scale.set(1.1, 0.9, 1.1);
+  group.add(bullHump);
 
-  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), rubyMat);
-  eyeL.position.set(-0.1, 0.68, 0.24);
-  const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), rubyMat);
-  eyeR.position.set(0.1, 0.68, 0.24);
+  // Lowered Head (charging posture)
+  const bullHead = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.55, 12), goldMat);
+  bullHead.rotation.x = -Math.PI * 0.65;
+  bullHead.position.set(0, 0.62, 0.75);
+  bullHead.castShadow = true;
+  group.add(bullHead);
+
+  // Fierce Curved Bull Horns
+  const hornL = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.45, 8), goldMat);
+  hornL.rotation.x = -Math.PI * 0.3;
+  hornL.rotation.z = 0.65;
+  hornL.position.set(-0.25, 0.88, 0.68);
+  group.add(hornL);
+
+  const hornR = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.45, 8), goldMat);
+  hornR.rotation.x = -Math.PI * 0.3;
+  hornR.rotation.z = -0.65;
+  hornR.position.set(0.25, 0.88, 0.68);
+  group.add(hornR);
+
+  // Glowing Green Bullish Eyes
+  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), greenGlowMat);
+  eyeL.position.set(-0.14, 0.66, 0.82);
+  const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), greenGlowMat);
+  eyeR.position.set(0.14, 0.66, 0.82);
   group.add(eyeL);
   group.add(eyeR);
+
+  // Sturdy golden legs
+  const legOffsets = [
+    [-0.28, 0.32, 0.45],
+    [0.28, 0.32, 0.45],
+    [-0.26, 0.32, -0.45],
+    [0.26, 0.32, -0.45],
+  ];
+  legOffsets.forEach(([lx, ly, lz]) => {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.07, 0.45, 10), goldMat);
+    leg.position.set(lx, ly, lz);
+    leg.castShadow = true;
+    group.add(leg);
+  });
 
   return group;
 }

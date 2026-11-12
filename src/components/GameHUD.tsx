@@ -9,10 +9,6 @@ import {
   ArrowRight,
   ArrowUp,
   ArrowDown,
-  CornerUpLeft,
-  CornerUpRight,
-  ChevronDown,
-  ChevronUp,
   Shield,
   Magnet,
   Zap,
@@ -20,6 +16,8 @@ import {
 } from 'lucide-react';
 import { sound } from '../game/audio';
 import { AdventurerProfile, getDiceBearAvatarUrl } from '../game/adventurers';
+import { TradingScreen } from './TradingScreen';
+import { MarketQuery } from '../game/queries';
 
 interface GameHUDProps {
   score: number;
@@ -31,6 +29,25 @@ interface GameHUDProps {
   hasMagnet: boolean;
   cameraMode: string;
   adventurer: AdventurerProfile;
+  // Stock Market Query Screen Props
+  currentQuery: MarketQuery;
+  portfolioValue: number;
+  startingCapital: number;
+  streak: number;
+  currentLaneX: number;
+  decisionFeedback: {
+    text: string;
+    profit: number;
+    isYes: boolean;
+  } | null;
+  tradeHistory: Array<{
+    ticker: string;
+    action: string;
+    profit: number;
+  }>;
+  onChooseYes: () => void;
+  onChooseNo: () => void;
+  // Handlers
   onOpenAdventurerSelect: () => void;
   onToggleCamera: () => void;
   onPauseToggle: () => void;
@@ -53,19 +70,25 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   hasMagnet,
   cameraMode,
   adventurer,
+  currentQuery,
+  portfolioValue,
+  startingCapital,
+  streak,
+  currentLaneX,
+  decisionFeedback,
+  tradeHistory,
+  onChooseYes,
+  onChooseNo,
   onOpenAdventurerSelect,
   onToggleCamera,
   onPauseToggle,
   onRestart,
-  onTurnLeft,
-  onTurnRight,
   onMoveLeft,
   onMoveRight,
   onJump,
   onSlide,
 }) => {
   const [isMuted, setIsMuted] = useState(!sound.enabled);
-  const [isControlsCollapsed, setIsControlsCollapsed] = useState(false);
 
   const handleToggleMute = () => {
     const enabled = sound.toggleMute();
@@ -73,17 +96,17 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   };
 
   return (
-    <div className="absolute inset-0 pointer-events-none select-none flex flex-col justify-between p-4">
+    <div className="absolute inset-0 pointer-events-none select-none flex flex-col justify-between p-3 sm:p-4">
       {/* Top Status Bar */}
       <div className="flex items-center justify-between w-full max-w-4xl mx-auto pointer-events-auto gap-2">
         <div className="flex items-center gap-2">
-          {/* Adventurer Face & Name Badge */}
+          {/* Active Runner Avatar */}
           <button
             onClick={onOpenAdventurerSelect}
-            className="bg-stone-900/85 hover:bg-stone-800/90 border border-amber-600/50 rounded-xl p-1.5 pr-2.5 shadow-lg flex items-center gap-2 transition group cursor-pointer"
-            title="Click to Switch Adventurer Face"
+            className="bg-slate-900/90 hover:bg-slate-800/90 border border-emerald-500/50 rounded-xl p-1.5 pr-2.5 shadow-lg flex items-center gap-2 transition group cursor-pointer"
+            title="Switch Trader Avatar"
           >
-            <div className="w-8 h-8 rounded-lg bg-stone-950 border border-amber-500/60 overflow-hidden shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-slate-950 border border-emerald-400/60 overflow-hidden shrink-0">
               <img
                 src={getDiceBearAvatarUrl(adventurer.seed)}
                 alt={adventurer.name}
@@ -91,44 +114,36 @@ export const GameHUD: React.FC<GameHUDProps> = ({
               />
             </div>
             <div className="flex flex-col text-left hidden sm:flex">
-              <span className="text-[10px] font-black text-amber-400 tracking-wider uppercase truncate max-w-[85px]">
+              <span className="text-[10px] font-black text-emerald-400 tracking-wider uppercase truncate max-w-[85px]">
                 {adventurer.name}
               </span>
-              <span className="text-[9px] text-stone-400 truncate max-w-[85px]">
+              <span className="text-[9px] text-slate-400 truncate max-w-[85px]">
                 {adventurer.perk}
               </span>
             </div>
           </button>
 
-          {/* Score & Multiplier */}
-          <div className="bg-stone-900/80 border border-amber-600/40 rounded-xl px-3 sm:px-4 py-2 shadow-lg backdrop-blur-none flex items-center gap-3">
-          <div className="flex flex-col">
-            <span className="text-[10px] tracking-widest uppercase font-semibold text-amber-400">Score</span>
-            <span className="text-2xl font-black tracking-tight text-white font-mono">
-              {score.toLocaleString()}
+          {/* Distance Indicator */}
+          <div className="bg-slate-900/90 border border-emerald-500/40 rounded-xl px-3 sm:px-4 py-2 shadow-lg flex items-center gap-2">
+            <span className="text-[10px] tracking-widest uppercase font-semibold text-emerald-400">
+              Run
             </span>
-          </div>
-          <div className="h-8 w-px bg-stone-700 mx-1" />
-          <div className="flex flex-col">
-            <span className="text-[10px] tracking-widest uppercase font-semibold text-emerald-400">Meters</span>
-            <span className="text-xl font-black text-emerald-200 font-mono">
+            <span className="text-base sm:text-lg font-black text-white font-mono tabular-nums">
               {distance}m
             </span>
           </div>
         </div>
-      </div>
 
         {/* Center: Active Powerup Banner */}
         {powerupMessage && (
-          <div className="bg-amber-500 text-stone-950 font-bold px-4 py-1.5 rounded-full shadow-lg border border-amber-300 text-xs tracking-wider uppercase animate-bounce flex items-center gap-2">
-            <Zap className="w-4 h-4 text-stone-950 fill-stone-950" />
+          <div className="bg-emerald-500 text-slate-950 font-bold px-4 py-1.5 rounded-full shadow-lg border border-emerald-300 text-xs tracking-wider uppercase animate-bounce flex items-center gap-2">
+            <Zap className="w-4 h-4 text-slate-950 fill-slate-950" />
             <span>{powerupMessage}</span>
           </div>
         )}
 
         {/* Coins & Quick Action Buttons */}
-        <div className="flex items-center gap-2">
-          {/* Active Powerup Badges */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {hasShield && (
             <div className="bg-blue-600/90 border border-blue-400 text-white p-2 rounded-xl shadow flex items-center gap-1">
               <Shield className="w-4 h-4 text-blue-200" />
@@ -140,12 +155,12 @@ export const GameHUD: React.FC<GameHUDProps> = ({
             </div>
           )}
 
-          {/* Coins Display */}
-          <div className="bg-stone-900/80 border border-amber-500/50 rounded-xl px-3.5 py-2 flex items-center gap-2 shadow-lg">
-            <div className="w-5 h-5 rounded-full bg-amber-400 border border-amber-200 flex items-center justify-center text-stone-950 font-bold text-xs shadow-inner">
+          {/* Bullion / Coins Display */}
+          <div className="bg-slate-900/90 border border-amber-500/50 rounded-xl px-3 py-2 flex items-center gap-1.5 shadow-lg">
+            <div className="w-5 h-5 rounded-full bg-amber-400 border border-amber-200 flex items-center justify-center text-slate-950 font-black text-xs shadow-inner">
               $
             </div>
-            <span className="text-xl font-black text-amber-300 font-mono">
+            <span className="text-base sm:text-lg font-black text-amber-300 font-mono tabular-nums">
               {coins}
             </span>
           </div>
@@ -153,149 +168,120 @@ export const GameHUD: React.FC<GameHUDProps> = ({
           {/* Camera View Toggle */}
           <button
             onClick={onToggleCamera}
-            className={`p-2.5 rounded-xl border transition active:scale-95 flex items-center gap-1 ${
+            className={`p-2 sm:p-2.5 rounded-xl border transition active:scale-95 flex items-center gap-1 cursor-pointer ${
               cameraMode === 'front'
-                ? 'bg-amber-500/20 border-amber-400 text-amber-300'
-                : 'bg-stone-900/80 border-stone-700 text-stone-200 hover:text-white hover:bg-stone-800'
+                ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300'
+                : 'bg-slate-900/90 border-slate-700 text-slate-200 hover:text-white hover:bg-slate-800'
             }`}
-            title={`Camera View: ${cameraMode.toUpperCase()} (Press C to switch)`}
+            title={`Camera: ${cameraMode.toUpperCase()} (Key C)`}
           >
-            <Camera className="w-5 h-5" />
+            <Camera className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
 
           {/* Mute button */}
           <button
             onClick={handleToggleMute}
-            className="p-2.5 rounded-xl bg-stone-900/80 border border-stone-700 text-stone-200 hover:text-white hover:bg-stone-800 transition active:scale-95"
-            title={isMuted ? 'Unmute Audio' : 'Mute Audio'}
+            className="p-2 sm:p-2.5 rounded-xl bg-slate-900/90 border border-slate-700 text-slate-200 hover:text-white hover:bg-slate-800 transition active:scale-95 cursor-pointer"
+            title={isMuted ? 'Unmute' : 'Mute'}
           >
-            {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+            {isMuted ? <VolumeX className="w-4 h-4 sm:w-5 sm:h-5" /> : <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" />}
           </button>
 
           {/* Pause button */}
           <button
             onClick={onPauseToggle}
-            className="p-2.5 rounded-xl bg-stone-900/80 border border-stone-700 text-stone-200 hover:text-white hover:bg-stone-800 transition active:scale-95"
-            title={isPaused ? 'Resume Game' : 'Pause Game'}
+            className="p-2 sm:p-2.5 rounded-xl bg-slate-900/90 border border-slate-700 text-slate-200 hover:text-white hover:bg-slate-800 transition active:scale-95 cursor-pointer"
+            title={isPaused ? 'Resume' : 'Pause'}
           >
-            {isPaused ? <Play className="w-5 h-5 text-emerald-400" /> : <Pause className="w-5 h-5" />}
+            {isPaused ? <Play className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" /> : <Pause className="w-4 h-4 sm:w-5 sm:h-5" />}
           </button>
 
           {/* Quick Restart */}
           <button
             onClick={onRestart}
-            className="p-2.5 rounded-xl bg-stone-900/80 border border-stone-700 text-stone-200 hover:text-white hover:bg-stone-800 transition active:scale-95"
+            className="p-2 sm:p-2.5 rounded-xl bg-slate-900/90 border border-slate-700 text-slate-200 hover:text-white hover:bg-slate-800 transition active:scale-95 cursor-pointer"
             title="Restart Run"
           >
-            <RotateCcw className="w-5 h-5" />
+            <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         </div>
       </div>
 
+      {/* Main Feature: In-Front Floating Screen with Stock Market Queries */}
+      <div className="w-full flex justify-center my-auto px-2 pointer-events-auto z-20">
+        <TradingScreen
+          currentQuery={currentQuery}
+          portfolioValue={portfolioValue}
+          startingCapital={startingCapital}
+          streak={streak}
+          currentLaneX={currentLaneX}
+          decisionFeedback={decisionFeedback}
+          tradeHistory={tradeHistory}
+          onChooseYes={onChooseYes}
+          onChooseNo={onChooseNo}
+        />
+      </div>
+
       {/* Center Paused Overlay */}
       {isPaused && (
-        <div className="self-center my-auto pointer-events-auto bg-stone-950/90 border-2 border-amber-600 rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl">
-          <h2 className="text-2xl font-black text-amber-400 uppercase tracking-widest mb-2">Game Paused</h2>
-          <p className="text-stone-300 text-sm mb-6">The ancient spider lurks behind you...</p>
+        <div className="self-center my-auto pointer-events-auto bg-slate-950/95 border-2 border-emerald-500 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl z-30">
+          <h2 className="text-2xl font-black text-emerald-400 uppercase tracking-widest mb-1">Trading Halted</h2>
+          <p className="text-slate-300 text-sm mb-6">Market paused. Resume when ready.</p>
           <div className="flex flex-col gap-3">
             <button
               onClick={onPauseToggle}
-              className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold rounded-xl tracking-wider transition uppercase shadow-lg"
+              className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl tracking-wider transition uppercase shadow-lg cursor-pointer"
             >
-              Resume Run
+              Resume Trading
             </button>
             <button
               onClick={onRestart}
-              className="w-full py-3 bg-stone-800 hover:bg-stone-700 text-stone-200 font-semibold rounded-xl tracking-wider transition uppercase"
+              className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl tracking-wider transition uppercase cursor-pointer"
             >
-              Restart
+              Restart Bull Run
             </button>
           </div>
         </div>
       )}
 
-      {/* Collapsible Ergonomic Bottom Control Dock */}
-      <div className="w-full max-w-3xl mx-auto pointer-events-auto transition-transform duration-300 flex flex-col items-center">
-        {/* Collapse / Expand Toggle Tab */}
-        <button
-          onClick={() => setIsControlsCollapsed(!isControlsCollapsed)}
-          className="bg-stone-900/90 border border-stone-700/80 border-b-0 text-stone-400 hover:text-amber-300 px-4 py-1.5 rounded-t-xl text-xs font-medium flex items-center gap-1.5 transition shadow"
-        >
-          {isControlsCollapsed ? (
-            <>
-              <ChevronUp className="w-3.5 h-3.5" /> Show Controls & Touch D-Pad
-            </>
-          ) : (
-            <>
-              <ChevronDown className="w-3.5 h-3.5" /> Hide Controls (Zen Mode)
-            </>
-          )}
-        </button>
-
-        {!isControlsCollapsed && (
-          <div className="w-full bg-stone-950/85 border border-stone-800 rounded-2xl p-3 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
-            {/* 90-Degree Turn Controls */}
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider hidden sm:inline mr-1">Turns:</span>
-              <button
-                onClick={onTurnLeft}
-                className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-amber-600/30 hover:bg-amber-600/50 border border-amber-500/60 text-amber-200 active:scale-95 transition font-bold text-sm shadow"
-              >
-                <CornerUpLeft className="w-5 h-5 text-amber-400" />
-                <span>Turn Left (90°)</span>
-              </button>
-              <button
-                onClick={onTurnRight}
-                className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-amber-600/30 hover:bg-amber-600/50 border border-amber-500/60 text-amber-200 active:scale-95 transition font-bold text-sm shadow"
-              >
-                <span>Turn Right (90°)</span>
-                <CornerUpRight className="w-5 h-5 text-amber-400" />
-              </button>
-            </div>
-
-            {/* Movement & Action D-Pad */}
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider hidden sm:inline mr-1">Actions:</span>
-              <button
-                onClick={onMoveLeft}
-                className="p-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 border border-stone-600 text-stone-200 active:scale-95 transition"
-                title="Lane Left (Left Arrow or A)"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-              <button
-                onClick={onJump}
-                className="flex items-center gap-1 px-3 py-2.5 rounded-xl bg-emerald-700/40 hover:bg-emerald-700/60 border border-emerald-500/60 text-emerald-200 active:scale-95 transition font-bold text-xs"
-                title="Jump Over Obstacle (Up Arrow / W / Space)"
-              >
-                <ArrowUp className="w-4 h-4 text-emerald-400" />
-                <span>Jump</span>
-              </button>
-              <button
-                onClick={onSlide}
-                className="flex items-center gap-1 px-3 py-2.5 rounded-xl bg-rose-700/40 hover:bg-rose-700/60 border border-rose-500/60 text-rose-200 active:scale-95 transition font-bold text-xs"
-                title="Slide Under Arch (Down Arrow / S)"
-              >
-                <ArrowDown className="w-4 h-4 text-rose-400" />
-                <span>Slide</span>
-              </button>
-              <button
-                onClick={onMoveRight}
-                className="p-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 border border-stone-600 text-stone-200 active:scale-95 transition"
-                title="Lane Right (Right Arrow or D)"
-              >
-                <ArrowRight className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Keyboard shortcut guide badge */}
-            <div className="hidden lg:flex flex-col text-[10px] text-stone-400 text-right leading-tight">
-              <span>Keys: <b className="text-amber-300">A / D</b> = Lane Shift</span>
-              <span><b className="text-amber-300">Left / Right Arrows</b> = 90° Turn</span>
-              <span><b className="text-emerald-300">Space / Up</b> = Jump | <b className="text-rose-300">Down / S</b> = Slide</span>
-            </div>
+      {/* Sleek Floating Bottom Control Strip */}
+      <div className="w-full max-w-xl mx-auto pointer-events-auto flex flex-col items-center gap-1.5">
+        <div className="flex items-center justify-between w-full bg-slate-950/80 border border-slate-800 rounded-2xl p-1.5 shadow-xl">
+          <button
+            onClick={onMoveLeft}
+            className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 active:scale-95 transition flex items-center gap-1 text-xs font-bold cursor-pointer"
+            title="Steer Left (YES / BUY)"
+          >
+            <ArrowLeft className="w-4 h-4 text-emerald-400" />
+            <span>Left (YES)</span>
+          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onJump}
+              className="px-4 py-2 rounded-xl bg-emerald-600/50 hover:bg-emerald-600/70 border border-emerald-400/60 text-emerald-100 active:scale-95 transition flex items-center gap-1 text-xs font-black uppercase tracking-wider cursor-pointer shadow"
+              title="Jump (Tap or Click Screen)"
+            >
+              <ArrowUp className="w-4 h-4 text-emerald-300" />
+              <span>Jump</span>
+            </button>
+            <button
+              onClick={onSlide}
+              className="px-3 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-300 active:scale-95 transition flex items-center gap-1 text-xs font-bold cursor-pointer"
+              title="Slide"
+            >
+              <ArrowDown className="w-3.5 h-3.5 text-slate-400" />
+              <span>Slide</span>
+            </button>
           </div>
-        )}
+          <button
+            onClick={onMoveRight}
+            className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 active:scale-95 transition flex items-center gap-1 text-xs font-bold cursor-pointer"
+            title="Steer Right (NO / PASS)"
+          >
+            <span>Right (NO)</span>
+            <ArrowRight className="w-4 h-4 text-rose-400" />
+          </button>
+        </div>
       </div>
     </div>
   );

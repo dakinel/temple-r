@@ -51,7 +51,12 @@ export class CharacterController {
   private lastTurnSegmentId: number = -1;
 
   // Callbacks
-  public onGameOver?: (stats: { distance: number; coins: number; score: number }) => void;
+  public onGameOver?: (stats: {
+    distance: number;
+    coins: number;
+    score: number;
+    reason?: string;
+  }) => void;
   public onCoinPickup?: (count: number) => void;
   public onPowerupPickup?: (type: string) => void;
 
@@ -103,6 +108,8 @@ export class CharacterController {
       this.currentLane--;
       this.targetLaneX = this.currentLane * this.trackManager.laneOffset;
       sound.playTurn();
+    } else {
+      this.targetLaneX = -this.trackManager.laneOffset;
     }
   }
 
@@ -112,19 +119,31 @@ export class CharacterController {
       this.currentLane++;
       this.targetLaneX = this.currentLane * this.trackManager.laneOffset;
       sound.playTurn();
+    } else {
+      this.targetLaneX = this.trackManager.laneOffset;
+    }
+  }
+
+  // Smooth lateral steering with mouse wheel scroll left/right or trackpad
+  public steer(deltaX: number) {
+    if (this.state === 'fall' || this.state === 'dead') return;
+    const maxOffset = this.trackManager.laneOffset;
+    this.targetLaneX = Math.max(-maxOffset, Math.min(maxOffset, this.targetLaneX + deltaX));
+    if (this.targetLaneX < -maxOffset * 0.5) {
+      this.currentLane = -1;
+    } else if (this.targetLaneX > maxOffset * 0.5) {
+      this.currentLane = 1;
+    } else {
+      this.currentLane = 0;
     }
   }
 
   public turnLeft() {
-    if (this.state === 'fall' || this.state === 'dead') return;
-    this.queuedTurn = 'left';
-    this.checkTurnExecution();
+    this.moveLeft();
   }
 
   public turnRight() {
-    if (this.state === 'fall' || this.state === 'dead') return;
-    this.queuedTurn = 'right';
-    this.checkTurnExecution();
+    this.moveRight();
   }
 
   public jump() {
@@ -146,46 +165,6 @@ export class CharacterController {
       if (this.verticalVelocity > 0) this.verticalVelocity = -4;
       sound.playSlide();
     }
-  }
-
-  // Turn execution check: checks if player is near a junction trigger
-  private checkTurnExecution(): boolean {
-    if (!this.queuedTurn) return false;
-
-    // Search nearby track segment with turn opportunity
-    for (const seg of this.trackManager.segments) {
-      if (seg.hasTurnOpportunity && seg.id !== this.lastTurnSegmentId) {
-        const distToTrigger = this.position.distanceTo(seg.turnTriggerPos);
-
-        // Turn acceptance window: within 4.5m of the turn center
-        if (distToTrigger < 4.8) {
-          const desired = this.queuedTurn;
-          const allowed = seg.turnDirection;
-
-          if (allowed === 'both' || allowed === desired) {
-            // Execute 90-degree turn!
-            const turnAngle = desired === 'left' ? Math.PI / 2 : -Math.PI / 2;
-            this.headingAngle += turnAngle;
-
-            // Snap forward position cleanly onto the turn trigger center
-            this.position.x = seg.turnTriggerPos.x;
-            this.position.z = seg.turnTriggerPos.z;
-
-            // Reset lane offset
-            this.currentLane = 0;
-            this.targetLaneX = 0;
-            this.currentLaneX = 0;
-
-            this.lastTurnSegmentId = seg.id;
-            this.queuedTurn = null;
-            sound.playTurn();
-            return true;
-          }
-        }
-      }
-    }
-
-    return false;
   }
 
   // --- Main Update Loop ---
@@ -279,37 +258,23 @@ export class CharacterController {
     this.spider.group.rotation.y = this.headingAngle;
     this.spider.updateAnimation(time, this.currentSpeed, false);
 
-    // 7. Check Turn Opportunity Window
-    if (this.queuedTurn) {
-      this.checkTurnExecution();
-    }
-
-    // 8. Track Boundaries & Abyss Check
+    // 7. Track Boundaries
     this.checkTrackBounds();
 
-    // 9. Coin Pickups & Magnet Effect
+    // 8. Dollar Coin Pickups & Magnet Effect
     this.handleCoins(renderPos, dt);
 
-    // 10. Obstacle Collisions
+    // 9. Obstacle Collisions
     this.handleObstacles(renderPos);
   }
 
-  // Check if player walked off track or ran past a turn junction without turning
+  // Safe track bounds check
   private checkTrackBounds() {
-    // Check if player missed a mandatory turn
-    for (const seg of this.trackManager.segments) {
-      if (seg.hasTurnOpportunity && seg.id !== this.lastTurnSegmentId) {
-        // If player passed more than 3.5m beyond the turn trigger position without turning
-        const forwardVector = new THREE.Vector3(Math.sin(seg.headingAngle), 0, Math.cos(seg.headingAngle));
-        const delta = this.position.clone().sub(seg.turnTriggerPos);
-        const dot = delta.dot(forwardVector);
-
-        if (dot > 3.6 && this.headingAngle === seg.headingAngle) {
-          // Missed turn! Plunge into the mist!
-          this.triggerFall();
-          return;
-        }
-      }
+    // Keep player within ticker tape boundaries
+    const halfWidth = this.trackManager.trackWidth * 0.5 - 0.2;
+    if (Math.abs(this.currentLaneX) > halfWidth) {
+      this.currentLaneX = Math.sign(this.currentLaneX) * halfWidth;
+      this.targetLaneX = this.currentLaneX;
     }
   }
 
@@ -406,5 +371,18 @@ export class CharacterController {
     if (this.state === 'fall' || this.state === 'dead') return;
     this.state = 'fall';
     sound.playFall();
+  }
+
+  public die(reason?: string) {
+    if (this.state === 'dead') return;
+    this.state = 'dead';
+    sound.playCrash();
+    sound.playSpiderRoar();
+    this.onGameOver?.({
+      distance: Math.floor(this.distanceRun),
+      coins: this.coinsCollected,
+      score: Math.floor(this.score),
+      reason,
+    });
   }
 }
