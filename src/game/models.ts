@@ -33,7 +33,9 @@ export interface AdventurerModel {
     speed: number,
     state: 'run' | 'jump' | 'slide' | 'fall',
     landingImpact?: number,
-    verticalVel?: number
+    verticalVel?: number,
+    dt?: number,
+    steerBank?: number
   ) => void;
   updateAppearance: (
     shirtColor: number,
@@ -127,32 +129,18 @@ export function createAdventurer(): AdventurerModel {
     roughness: 0.18,
   });
 
-  // Premium Optical Glass Helmet Dome (depthWrite: false ensures inner head & face stay 100% crisp)
+  // Premium Optical Glass Helmet Dome (depthWrite: false ensures inner avatar stays 100% crisp)
   const glassDomeMat = new THREE.MeshPhysicalMaterial({
     color: 0xdff6ff,
     transparent: true,
-    opacity: 0.24,
-    roughness: 0.04,
-    metalness: 0.08,
+    opacity: 0.22,
+    roughness: 0.03,
+    metalness: 0.06,
     ior: 1.52,
     reflectivity: 1.0,
     clearcoat: 1.0,
     clearcoatRoughness: 0.03,
-    envMapIntensity: 2.6,
-    depthWrite: false,
-    side: THREE.FrontSide,
-  });
-
-  // Subtle Gold-Iridescent Inner Visor Shield Tint
-  const visorTintMat = new THREE.MeshPhysicalMaterial({
-    color: 0xfde68a,
-    transparent: true,
-    opacity: 0.13,
-    roughness: 0.06,
-    metalness: 0.25,
-    clearcoat: 1.0,
-    clearcoatRoughness: 0.04,
-    envMapIntensity: 2.2,
+    envMapIntensity: 2.8,
     depthWrite: false,
     side: THREE.FrontSide,
   });
@@ -304,115 +292,10 @@ export function createAdventurer(): AdventurerModel {
   chassis.add(createShoulderFins(true));
   chassis.add(createShoulderFins(false));
 
-  // --- PREMIUM 3D GLASS SPACE/CYBER HELMET ENCLOSING THE PLAYER'S HEAD ---
-  // Features a machined-iron locking neck collar, armored side ear-comm pods,
-  // dorsal helmet spine ridge, 3D inner head core with front/back avatar faces,
-  // subtle gold visor shield, and a crystal-clear specular glass bubble dome.
+  // --- CLEAN GLASS HELMET WITH AVATAR INSIDE (NO FRAMES, NO COLLARS, NO CRESTS) ---
   const headGroup = new THREE.Group();
   headGroup.position.set(0, 1.18, 0);
   group.add(headGroup);
-
-  // Sturdy dark iron neck pivot joint
-  const headStem = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.055, 0.075, 0.08, 16),
-    darkIronFrameMat
-  );
-  headStem.position.y = 0.04;
-  headStem.castShadow = true;
-  headGroup.add(headStem);
-
-  // Precision Helmet Neck Seal Collar Ring (Machined Iron + Gold Clamp + Cyber Pressure Seal)
-  const collarBaseRing = new THREE.Mesh(
-    new THREE.TorusGeometry(0.172, 0.032, 14, 32),
-    ironArmPlateMat
-  );
-  collarBaseRing.rotation.x = Math.PI / 2;
-  collarBaseRing.position.y = 0.048;
-  collarBaseRing.castShadow = true;
-  headGroup.add(collarBaseRing);
-
-  const collarGoldClamp = new THREE.Mesh(
-    new THREE.TorusGeometry(0.194, 0.013, 10, 32),
-    brassMat
-  );
-  collarGoldClamp.rotation.x = Math.PI / 2;
-  collarGoldClamp.position.y = 0.062;
-  headGroup.add(collarGoldClamp);
-
-  const collarCyberSeal = new THREE.Mesh(
-    new THREE.TorusGeometry(0.184, 0.006, 8, 32),
-    cyberOpticMat
-  );
-  collarCyberSeal.rotation.x = Math.PI / 2;
-  collarCyberSeal.position.y = 0.074;
-  headGroup.add(collarCyberSeal);
-
-  // 4 Radial Collar Locking Latches
-  for (let l = 0; l < 4; l++) {
-    const ang = (l * Math.PI) / 2 + Math.PI / 4;
-    const latch = new THREE.Mesh(
-      new THREE.BoxGeometry(0.038, 0.036, 0.045),
-      machinedIronMat
-    );
-    latch.position.set(Math.cos(ang) * 0.19, 0.058, Math.sin(ang) * 0.19);
-    latch.rotation.y = -ang;
-    headGroup.add(latch);
-  }
-
-  // Left & Right Armored Helmet Ear-Pod Comm Modules
-  for (const side of [-1, 1]) {
-    const earHousing = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.068, 0.068, 0.052, 16),
-      ironArmPlateMat
-    );
-    earHousing.rotation.z = Math.PI / 2;
-    earHousing.position.set(side * 0.258, 0.185, 0);
-    earHousing.castShadow = true;
-    headGroup.add(earHousing);
-
-    const earTrimRing = new THREE.Mesh(
-      new THREE.TorusGeometry(0.056, 0.008, 8, 20),
-      brassMat
-    );
-    earTrimRing.rotation.y = Math.PI / 2;
-    earTrimRing.position.set(side * 0.285, 0.185, 0);
-    headGroup.add(earTrimRing);
-
-    const earOpticDot = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.02, 0.02, 0.012, 12),
-      cyberOpticMat
-    );
-    earOpticDot.rotation.z = Math.PI / 2;
-    earOpticDot.position.set(side * 0.286, 0.185, 0);
-    headGroup.add(earOpticDot);
-  }
-
-  // Dorsal Curved Helmet Spine Crest (Premium profile from rear chase & side cameras)
-  const dorsalSpine = new THREE.Mesh(
-    new THREE.TorusGeometry(0.268, 0.018, 10, 28, Math.PI * 0.72),
-    darkIronFrameMat
-  );
-  dorsalSpine.rotation.y = Math.PI / 2;
-  dorsalSpine.rotation.z = Math.PI * 0.18;
-  dorsalSpine.position.set(0, 0.185, 0);
-  headGroup.add(dorsalSpine);
-
-  const dorsalTrim = new THREE.Mesh(
-    new THREE.TorusGeometry(0.278, 0.006, 8, 28, Math.PI * 0.62),
-    cyberOpticMat
-  );
-  dorsalTrim.rotation.y = Math.PI / 2;
-  dorsalTrim.rotation.z = Math.PI * 0.23;
-  dorsalTrim.position.set(0, 0.185, 0);
-  headGroup.add(dorsalTrim);
-
-  // Inner 3D Sculpted Head Core (sleek flight hood/cranium inside the glass dome)
-  const innerHeadGeom = new THREE.SphereGeometry(0.178, 24, 20);
-  innerHeadGeom.scale(0.95, 1.04, 0.86);
-  const innerHeadCore = new THREE.Mesh(innerHeadGeom, darkIronFrameMat);
-  innerHeadCore.position.set(0, 0.19, 0);
-  innerHeadCore.castShadow = true;
-  headGroup.add(innerHeadCore);
 
   // Initial Front Face Canvas & Material
   const initFaceCanvas = document.createElement('canvas');
@@ -439,15 +322,15 @@ export function createAdventurer(): AdventurerModel {
     map: initFrontTex,
     color: 0xffffff,
     roughness: 0.28,
-    metalness: 0.05,
+    metalness: 0.02,
     polygonOffset: true,
     polygonOffsetFactor: -1,
     polygonOffsetUnits: -1,
   });
 
-  // Front Face Mesh inside glass helmet (visible from front selfie camera mode)
-  const frontFaceMesh = new THREE.Mesh(new THREE.CircleGeometry(0.165, 32), frontFaceMat);
-  frontFaceMesh.position.set(0, 0.19, 0.152);
+  // Front Avatar Mesh inside glass dome (visible from front camera)
+  const frontFaceMesh = new THREE.Mesh(new THREE.CircleGeometry(0.185, 36), frontFaceMat);
+  frontFaceMesh.position.set(0, 0.175, 0.004);
   headGroup.add(frontFaceMesh);
 
   // Initial Back Face Canvas (authentic back of head with full hair, nape & ears)
@@ -478,39 +361,24 @@ export function createAdventurer(): AdventurerModel {
     map: initBackTex,
     color: 0xffffff,
     roughness: 0.28,
-    metalness: 0.05,
+    metalness: 0.02,
     polygonOffset: true,
     polygonOffsetFactor: -1,
     polygonOffsetUnits: -1,
   });
 
-  // Back Face Mesh inside glass helmet (directly facing the chase camera)
-  const backFaceMesh = new THREE.Mesh(new THREE.CircleGeometry(0.165, 32), backFaceMat);
+  // Back Avatar Mesh inside glass dome (directly facing the chase camera)
+  const backFaceMesh = new THREE.Mesh(new THREE.CircleGeometry(0.185, 36), backFaceMat);
   backFaceMesh.rotation.y = Math.PI;
   backFaceMesh.scale.x = -1; // Align texture coordinates with chase camera screen orientation
-  backFaceMesh.position.set(0, 0.19, -0.152);
+  backFaceMesh.position.set(0, 0.175, -0.004);
   headGroup.add(backFaceMesh);
 
-  // Subtle Gold-Tinted Inner Curved Astronaut Visor Shield
-  const visorShieldGeom = new THREE.SphereGeometry(
-    0.258,
-    32,
-    20,
-    Math.PI * 0.15,
-    Math.PI * 0.7,
-    Math.PI * 0.24,
-    Math.PI * 0.46
-  );
-  const visorShield = new THREE.Mesh(visorShieldGeom, visorTintMat);
-  visorShield.position.set(0, 0.185, 0);
-  visorShield.renderOrder = 11;
-  headGroup.add(visorShield);
-
-  // Outer Crystal-Clear Spherical Glass Helmet Bubble Dome
-  const canopyGeom = new THREE.SphereGeometry(0.272, 36, 28);
-  canopyGeom.scale(1.0, 1.06, 1.04);
+  // Pure Crystal-Clear Spherical Glass Dome
+  const canopyGeom = new THREE.SphereGeometry(0.255, 36, 28);
+  canopyGeom.scale(1.0, 1.04, 1.04);
   const glassCanopy = new THREE.Mesh(canopyGeom, glassDomeMat);
-  glassCanopy.position.set(0, 0.185, 0);
+  glassCanopy.position.set(0, 0.175, 0);
   glassCanopy.renderOrder = 12;
   headGroup.add(glassCanopy);
 
@@ -838,163 +706,258 @@ export function createAdventurer(): AdventurerModel {
   const leftArm = leftArmObj.root;
   const rightArm = rightArmObj.root;
 
-  // --- "NOT SO SYNC MOVES" ASYMMETRIC LOCOMOTIVE PHYSICS ---
-  // Desynchronized phase offsets, uneven reach strides, staggered claw articulation,
-  // and organic recoil physics give the robot a dynamic, imperfect, living mechanical gait!
+  // Persistent locomotion & pose-blending state for fluid non-robotic motion
+  let stridePhase = 0;
+  let smoothBank = 0;
+  let smoothPitch = 0.1;
+  let smoothGroupY = 0;
+  let smoothScaleXZ = 1;
+  let smoothScaleY = 1;
+  let smoothChestY = 0.95;
+  let smoothHeadY = 1.18;
+  let smoothHeadPitch = 0;
+  let smoothHeadRoll = 0;
+  let smoothChassisRoll = 0;
+  let smoothChassisYaw = 0;
+  let smoothExpandL = 1;
+  let smoothExpandR = 1;
+  let smoothShXL = 0;
+  let smoothShXR = 0;
+  let smoothShZL = -0.18;
+  let smoothShZR = 0.18;
+  let smoothElXL = -0.45;
+  let smoothElXR = -0.45;
+  let smoothWrXL = 0.45;
+  let smoothWrXR = 0.45;
+
   const updateAnimation = (
     time: number,
     speed: number,
     state: 'run' | 'jump' | 'slide' | 'fall',
     landingImpact: number = 0,
-    verticalVel: number = 0
+    verticalVel: number = 0,
+    dt: number = 1 / 60,
+    steerBank: number = 0
   ) => {
+    const safeDt = Math.min(0.05, Math.max(0.001, dt));
+    const poseAlpha = 1 - Math.exp(-16 * safeDt);
+    const bodyAlpha = 1 - Math.exp(-14 * safeDt);
+    const bankAlpha = 1 - Math.exp(-11 * safeDt);
+
+    // Smooth banking lean into turns & lane weaves
+    smoothBank += (steerBank - smoothBank) * bankAlpha;
+
+    // Continuous phase accumulation prevents limb snapping when scroll-speed changes
+    const runFreq = Math.max(5.5, speed * 1.38);
     if (state === 'run') {
-      const runFreq = speed * 1.45;
-      const strideTime = time * runFreq;
+      stridePhase += safeDt * runFreq;
+    } else if (state === 'jump') {
+      stridePhase += safeDt * runFreq * 0.28;
+    }
 
-      // === NOT SO SYNC: ASYMMETRIC PHASE & TIMING OFFSETS ===
-      // Instead of rigid 180° mirror symmetry, we introduce an organic staggered cadence!
-      // Left arm has a lead stride; Right arm follows with a slight micro-delay and harmonic bounce.
-      const phaseL = strideTime;
-      const phaseR = strideTime + Math.PI * 0.84 + Math.sin(strideTime * 0.5) * 0.18;
+    let targetPitch = 0.1;
+    let targetGroupY = 0;
+    let targetScaleXZ = 1;
+    let targetScaleY = 1;
+    let targetChestY = 0.95;
+    let targetHeadY = 1.18;
+    let targetHeadPitch = 0;
+    let targetHeadRoll = 0;
+    let targetChassisRoll = 0;
+    let targetChassisYaw = 0;
+    let targetExpandL = 1;
+    let targetExpandR = 1;
+    let targetShXL = 0;
+    let targetShXR = 0;
+    let targetShZL = -0.18;
+    let targetShZR = 0.18;
+    let targetElXL = -0.45;
+    let targetElXR = -0.45;
+    let targetWrXL = 0.45;
+    let targetWrXR = 0.45;
 
-      // Asymmetric swing curves: Left arm has long sweeping strokes, Right arm has quick snappy pushes
+    if (state === 'run') {
+      // Fluid counter-balanced stride with soft organic lag
+      const phaseL = stridePhase;
+      const phaseR = stridePhase + Math.PI * 0.92 + Math.sin(stridePhase * 0.5) * 0.1;
+
       const swingL = Math.sin(phaseL);
-      const swingR = Math.sin(phaseR) * 0.92 + Math.cos(phaseR * 2) * 0.14;
+      const swingR = Math.sin(phaseR);
 
-      // Landing squash-and-rebound curve (peaks quickly on touchdown, rebounds subtly)
-      const squash = landingImpact > 0 ? Math.sin(landingImpact * Math.PI * 0.65) : 0;
-      const crouchDrop = landingImpact * 0.30;
+      const squash = landingImpact > 0 ? Math.sin(landingImpact * Math.PI * 0.7) : 0;
+      const crouchDrop = landingImpact * 0.24;
 
-      // === DESYNCHRONIZED EXPANSION AS MOVE MECHANIC ===
-      const armCompress = 1 - landingImpact * 0.24;
-      const expandL = (0.86 + Math.max(0, swingL) * 0.74) * armCompress;
-      const expandR = (0.89 + Math.max(0, swingR) * 0.64 + (Math.sin(phaseR * 3) > 0.5 ? 0.06 : 0)) * armCompress;
+      const armCompress = 1 - landingImpact * 0.2;
+      targetExpandL = (0.9 + Math.max(0, swingL) * 0.52) * armCompress;
+      targetExpandR = (0.9 + Math.max(0, swingR) * 0.50) * armCompress;
 
-      leftArmObj.telescopeAssembly.scale.set(
-        1 / Math.sqrt(expandL),
-        expandL,
-        1 / Math.sqrt(expandL)
-      );
-      rightArmObj.telescopeAssembly.scale.set(
-        1 / Math.sqrt(expandR),
-        expandR,
-        1 / Math.sqrt(expandR)
-      );
+      targetShXL = swingL * 0.86 * (1 - landingImpact * 0.45) + landingImpact * 0.42;
+      targetShXR = swingR * 0.84 * (1 - landingImpact * 0.45) + landingImpact * 0.38;
 
-      // Asymmetric Shoulder Reach + landing brace forward
-      leftArmObj.shoulderPivot.rotation.x = swingL * 0.88 * (1 - landingImpact * 0.5) + landingImpact * 0.45;
-      rightArmObj.shoulderPivot.rotation.x = swingR * 0.82 * (1 - landingImpact * 0.5) + landingImpact * 0.38;
+      // Subtle lateral arm arc + counter-balance flare on banking turns
+      targetShZL = -0.18 - Math.cos(phaseL) * 0.08 - Math.max(0, swingL) * 0.1 - landingImpact * 0.36 + Math.max(0, smoothBank) * 0.25;
+      targetShZR = 0.18 + Math.cos(phaseR) * 0.08 + Math.max(0, swingR) * 0.1 + landingImpact * 0.36 + Math.min(0, smoothBank) * 0.25;
 
-      // Flare arms outward on landing to stabilize impact
-      leftArmObj.shoulderPivot.rotation.z = -0.18 - Math.max(0, swingL) * 0.16 - landingImpact * 0.42;
-      rightArmObj.shoulderPivot.rotation.z = 0.12 + Math.max(0, swingR) * 0.10 + landingImpact * 0.42;
+      targetElXL = -0.42 - Math.max(0, swingL) * 0.72 + Math.min(0, swingL) * 0.24 - landingImpact * 0.55;
+      targetElXR = -0.40 - Math.max(0, swingR) * 0.70 + Math.min(0, swingR) * 0.22 - landingImpact * 0.52;
 
-      // Desynchronized Elbow Articulation + deep landing shock bend
-      leftArmObj.elbow.rotation.x = -0.42 - Math.max(0, swingL) * 0.82 + Math.min(0, swingL) * 0.32 - landingImpact * 0.65;
-      rightArmObj.elbow.rotation.x = -0.32 - Math.max(0, swingR) * 0.68 + Math.min(0, swingR) * 0.22 - landingImpact * 0.58;
-
-      // Wrist Orientation
-      leftArmObj.wrist.rotation.x = -leftArmObj.shoulderPivot.rotation.x - leftArmObj.elbow.rotation.x;
-      rightArmObj.wrist.rotation.x = -rightArmObj.shoulderPivot.rotation.x - rightArmObj.elbow.rotation.x;
+      targetWrXL = -targetShXL - targetElXL;
+      targetWrXR = -targetShXR - targetElXR;
 
       leftArmObj.claws.forEach((claw, idx) => {
-        const clawDelay = idx * 0.14;
-        const delayedPlant = Math.max(0, -Math.sin(phaseL - clawDelay));
+        const delayedPlant = Math.max(0, -Math.sin(phaseL - idx * 0.14));
         const hinge = claw.children[2];
-        if (hinge) hinge.rotation.x = -0.52 + delayedPlant * 0.48 + landingImpact * 0.35;
-        claw.rotation.x = delayedPlant * 0.32 + landingImpact * 0.25;
+        if (hinge) hinge.rotation.x = -0.5 + delayedPlant * 0.42 + landingImpact * 0.3;
+        claw.rotation.x = delayedPlant * 0.28 + landingImpact * 0.22;
       });
 
       rightArmObj.claws.forEach((claw, idx) => {
         const delayedPlant = Math.max(0, -Math.sin(phaseR - (2 - idx) * 0.12));
         const hinge = claw.children[2];
-        if (hinge) hinge.rotation.x = -0.50 + delayedPlant * 0.44 + landingImpact * 0.35;
-        claw.rotation.x = delayedPlant * 0.28 + landingImpact * 0.25;
+        if (hinge) hinge.rotation.x = -0.5 + delayedPlant * 0.42 + landingImpact * 0.3;
+        claw.rotation.x = delayedPlant * 0.28 + landingImpact * 0.22;
       });
 
-      // Asymmetric Chassis Vaulting & Landing Compression
-      const vaultBob = (Math.abs(Math.sin(phaseL)) * 0.12 + Math.abs(Math.sin(phaseR)) * 0.06) * (1 - landingImpact);
-      chassis.position.y = 0.95 + vaultBob - crouchDrop;
-      headGroup.position.y = 1.18 + vaultBob - crouchDrop * 1.08;
+      // Smooth double-frequency athletic stride bob
+      const strideBob = (Math.sin(phaseL * 2 - 0.5) * 0.045 + Math.abs(Math.sin(phaseL)) * 0.065) * (1 - landingImpact);
+      targetChestY = 0.95 + strideBob - crouchDrop;
+      targetHeadY = 1.18 + strideBob * 0.82 - crouchDrop * 1.04;
 
-      // Staggered lateral body roll + subtle forward impact dip
-      chassis.rotation.z = (Math.sin(phaseL) * 0.11 - Math.sin(phaseR) * 0.05) * (1 - landingImpact * 0.6);
-      chassis.rotation.y = Math.sin(strideTime * 1.1) * 0.12 * (1 - landingImpact * 0.7);
-      headGroup.rotation.z = -chassis.rotation.z * 0.5 + Math.sin(time * 4) * 0.03;
-      headGroup.rotation.x = landingImpact * 0.22;
+      // Fluid shoulder sway, torso twist & horizon-stabilized head counter-tilt
+      targetChassisRoll = (Math.sin(phaseL) * 0.075 - Math.sin(phaseR) * 0.045) * (1 - landingImpact * 0.5) + smoothBank * 0.28;
+      targetChassisYaw = Math.sin(stridePhase) * 0.09 * (1 - landingImpact * 0.65) - smoothBank * 0.18;
+      targetHeadRoll = -targetChassisRoll * 0.58 - smoothBank * 0.25 + Math.sin(time * 3.2) * 0.02;
+      targetHeadPitch = landingImpact * 0.18 - Math.min(0.08, (speed - 9.5) * 0.005);
 
-      // Reactor core energy surge on landing
-      chestCoreLight.intensity = 2.0 + Math.sin(time * 11) * 0.7 + landingImpact * 3.5;
-      chestCore.scale.setScalar(1 + Math.sin(time * 11) * 0.08 + landingImpact * 0.22);
+      const speedLean = Math.min(0.22, 0.09 + Math.max(0, speed - 8) * 0.006);
+      targetPitch = speedLean + landingImpact * 0.15;
+      targetGroupY = -crouchDrop * 0.16;
+      targetScaleY = 1 - squash * 0.18;
+      targetScaleXZ = 1 + squash * 0.11;
 
-      group.rotation.x = 0.12 + landingImpact * 0.18;
-      group.position.y = -crouchDrop * 0.18;
-      const scaleY = 1 - squash * 0.22;
-      const scaleXZ = 1 + squash * 0.14;
-      group.scale.set(scaleXZ, scaleY, scaleXZ);
+      chestCoreLight.intensity = 2.0 + Math.sin(time * 9) * 0.5 + landingImpact * 3.2;
+      chestCore.scale.setScalar(1 + Math.sin(time * 9) * 0.06 + landingImpact * 0.2);
     } else if (state === 'jump') {
-      // Dynamic arc posture: rising stretches upward, descending braces for landing
       const fallFactor = Math.max(0, Math.min(1, -verticalVel / 10));
-      const jumpExpand = 1.48 - fallFactor * 0.22;
-      leftArmObj.telescopeAssembly.scale.set(0.9, jumpExpand, 0.9);
-      rightArmObj.telescopeAssembly.scale.set(0.88, jumpExpand * 0.96, 0.88);
+      const riseFactor = Math.max(0, Math.min(1, verticalVel / 9.8));
+      const jumpExpand = 1.42 - fallFactor * 0.18;
 
-      leftArmObj.shoulderPivot.rotation.x = -1.18 + fallFactor * 0.85;
-      rightArmObj.shoulderPivot.rotation.x = -1.10 + fallFactor * 0.82;
-      leftArmObj.shoulderPivot.rotation.z = -0.15 - fallFactor * 0.28;
-      rightArmObj.shoulderPivot.rotation.z = 0.15 + fallFactor * 0.28;
-      leftArmObj.elbow.rotation.x = -0.88 - fallFactor * 0.25;
-      rightArmObj.elbow.rotation.x = -0.78 - fallFactor * 0.25;
-      leftArmObj.wrist.rotation.x = 0.82;
-      rightArmObj.wrist.rotation.x = 0.76;
+      targetExpandL = jumpExpand;
+      targetExpandR = jumpExpand * 0.96;
+      targetShXL = -1.08 + fallFactor * 0.84;
+      targetShXR = -1.0 + fallFactor * 0.8;
+      targetShZL = -0.18 - fallFactor * 0.24 + smoothBank * 0.2;
+      targetShZR = 0.18 + fallFactor * 0.24 + smoothBank * 0.2;
+      targetElXL = -0.82 - fallFactor * 0.22;
+      targetElXR = -0.74 - fallFactor * 0.22;
+      targetWrXL = 0.72;
+      targetWrXR = 0.68;
 
-      leftArmObj.claws.forEach((c) => { c.rotation.x = 0.65 - fallFactor * 0.35; });
-      rightArmObj.claws.forEach((c) => { c.rotation.x = 0.55 - fallFactor * 0.35; });
+      leftArmObj.claws.forEach((c) => { c.rotation.x = 0.55 - fallFactor * 0.3; });
+      rightArmObj.claws.forEach((c) => { c.rotation.x = 0.5 - fallFactor * 0.3; });
 
-      chassis.position.y = 0.98;
-      headGroup.position.y = 1.21;
-      headGroup.rotation.x = fallFactor * 0.12;
-      group.rotation.x = -0.15 + fallFactor * 0.22;
-      const stretchY = 1.07 - fallFactor * 0.08;
-      const stretchXZ = 0.95 + fallFactor * 0.05;
-      group.scale.set(stretchXZ, stretchY, stretchXZ);
+      targetChestY = 0.98;
+      targetHeadY = 1.21;
+      targetHeadPitch = -riseFactor * 0.1 + fallFactor * 0.16;
+      targetHeadRoll = -smoothBank * 0.35;
+      targetChassisRoll = smoothBank * 0.24;
+      targetChassisYaw = -smoothBank * 0.16;
+      targetPitch = -0.16 * riseFactor + 0.12 * fallFactor;
+      targetScaleY = 1.07 - fallFactor * 0.07;
+      targetScaleXZ = 0.95 + fallFactor * 0.04;
     } else if (state === 'slide') {
-      // High-speed cyber sled with slight staggered lead
-      const slideExpandL = 1.68;
-      const slideExpandR = 1.62;
-      leftArmObj.telescopeAssembly.scale.set(0.85, slideExpandL, 0.85);
-      rightArmObj.telescopeAssembly.scale.set(0.85, slideExpandR, 0.85);
+      targetExpandL = 1.56;
+      targetExpandR = 1.5;
+      targetShXL = 1.05;
+      targetShXR = 0.98;
+      targetShZL = -0.18 + smoothBank * 0.15;
+      targetShZR = 0.18 + smoothBank * 0.15;
+      targetElXL = -0.24;
+      targetElXR = -0.28;
+      targetWrXL = -0.82;
+      targetWrXR = -0.78;
 
-      leftArmObj.shoulderPivot.rotation.x = 1.15;
-      rightArmObj.shoulderPivot.rotation.x = 1.08;
-      leftArmObj.shoulderPivot.rotation.z = -0.15;
-      rightArmObj.shoulderPivot.rotation.z = 0.15;
-      leftArmObj.elbow.rotation.x = -0.20;
-      rightArmObj.elbow.rotation.x = -0.24;
-      leftArmObj.wrist.rotation.x = -0.92;
-      rightArmObj.wrist.rotation.x = -0.86;
+      leftArmObj.claws.forEach((c) => { c.rotation.x = -0.24; });
+      rightArmObj.claws.forEach((c) => { c.rotation.x = -0.22; });
 
-      leftArmObj.claws.forEach((c) => { c.rotation.x = -0.28; });
-      rightArmObj.claws.forEach((c) => { c.rotation.x = -0.24; });
-
-      chassis.position.y = 0.44;
-      headGroup.position.y = 0.62;
-      headGroup.rotation.x = 0;
-      group.rotation.x = -0.50;
-      group.position.y = -0.42;
-      group.scale.set(1.15, 0.65, 1.25);
+      targetChestY = 0.48;
+      targetHeadY = 0.66;
+      targetHeadPitch = 0.28;
+      targetHeadRoll = -smoothBank * 0.2;
+      targetChassisRoll = smoothBank * 0.18;
+      targetPitch = -0.46;
+      targetGroupY = -0.38;
+      targetScaleY = 0.68;
+      targetScaleXZ = 1.12;
     } else if (state === 'fall') {
-      const fallExpand = 1.0 + Math.sin(time * 15) * 0.40;
-      leftArmObj.telescopeAssembly.scale.set(1, fallExpand, 1);
-      rightArmObj.telescopeAssembly.scale.set(1, 1.9 - fallExpand, 1);
-
-      leftArmObj.shoulderPivot.rotation.x = Math.sin(time * 12) * 1.5;
-      rightArmObj.shoulderPivot.rotation.x = -Math.sin(time * 11) * 1.4;
-      group.rotation.x = time * 3;
-      group.rotation.z = Math.sin(time * 4) * 0.8;
-      group.scale.set(1, 1, 1);
+      const fallExpand = 1.0 + Math.sin(time * 13) * 0.32;
+      targetExpandL = fallExpand;
+      targetExpandR = 1.9 - fallExpand;
+      targetShXL = Math.sin(time * 11) * 1.35;
+      targetShXR = -Math.sin(time * 10) * 1.28;
+      group.rotation.x += safeDt * 3.0;
+      group.rotation.z = Math.sin(time * 4) * 0.65;
+      targetPitch = group.rotation.x;
+      targetScaleY = 1;
+      targetScaleXZ = 1;
     }
+
+    // Apply fluid exponential pose blending across all joints & torso
+    smoothExpandL += (targetExpandL - smoothExpandL) * poseAlpha;
+    smoothExpandR += (targetExpandR - smoothExpandR) * poseAlpha;
+    leftArmObj.telescopeAssembly.scale.set(
+      1 / Math.sqrt(smoothExpandL),
+      smoothExpandL,
+      1 / Math.sqrt(smoothExpandL)
+    );
+    rightArmObj.telescopeAssembly.scale.set(
+      1 / Math.sqrt(smoothExpandR),
+      smoothExpandR,
+      1 / Math.sqrt(smoothExpandR)
+    );
+
+    smoothShXL += (targetShXL - smoothShXL) * poseAlpha;
+    smoothShXR += (targetShXR - smoothShXR) * poseAlpha;
+    smoothShZL += (targetShZL - smoothShZL) * poseAlpha;
+    smoothShZR += (targetShZR - smoothShZR) * poseAlpha;
+    smoothElXL += (targetElXL - smoothElXL) * poseAlpha;
+    smoothElXR += (targetElXR - smoothElXR) * poseAlpha;
+    smoothWrXL += (targetWrXL - smoothWrXL) * poseAlpha;
+    smoothWrXR += (targetWrXR - smoothWrXR) * poseAlpha;
+
+    leftArmObj.shoulderPivot.rotation.x = smoothShXL;
+    rightArmObj.shoulderPivot.rotation.x = smoothShXR;
+    leftArmObj.shoulderPivot.rotation.z = smoothShZL;
+    rightArmObj.shoulderPivot.rotation.z = smoothShZR;
+    leftArmObj.elbow.rotation.x = smoothElXL;
+    rightArmObj.elbow.rotation.x = smoothElXR;
+    leftArmObj.wrist.rotation.x = smoothWrXL;
+    rightArmObj.wrist.rotation.x = smoothWrXR;
+
+    smoothChestY += (targetChestY - smoothChestY) * bodyAlpha;
+    smoothHeadY += (targetHeadY - smoothHeadY) * bodyAlpha;
+    smoothChassisRoll += (targetChassisRoll - smoothChassisRoll) * bodyAlpha;
+    smoothChassisYaw += (targetChassisYaw - smoothChassisYaw) * bodyAlpha;
+    smoothHeadRoll += (targetHeadRoll - smoothHeadRoll) * bodyAlpha;
+    smoothHeadPitch += (targetHeadPitch - smoothHeadPitch) * bodyAlpha;
+    smoothPitch += (targetPitch - smoothPitch) * bodyAlpha;
+    smoothGroupY += (targetGroupY - smoothGroupY) * bodyAlpha;
+    smoothScaleXZ += (targetScaleXZ - smoothScaleXZ) * bodyAlpha;
+    smoothScaleY += (targetScaleY - smoothScaleY) * bodyAlpha;
+
+    chassis.position.y = smoothChestY;
+    chassis.rotation.z = smoothChassisRoll;
+    chassis.rotation.y = smoothChassisYaw;
+    headGroup.position.y = smoothHeadY;
+    headGroup.rotation.z = smoothHeadRoll;
+    headGroup.rotation.x = smoothHeadPitch;
+
+    if (state !== 'fall') {
+      group.rotation.x = smoothPitch;
+      group.rotation.z = smoothBank * 0.42;
+      group.position.y += smoothGroupY;
+    }
+    group.scale.set(smoothScaleXZ, smoothScaleY, smoothScaleXZ);
   };
 
   const updateAppearance = (

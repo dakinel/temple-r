@@ -269,6 +269,142 @@ class SoundSystem {
     noise.stop(t + duration + 0.02);
   }
 
+  // Cinematic Red Candlestick Crash Cascade (deep bearish gong + staggered heavy bar slams)
+  public playCandlestickCrash() {
+    if (!this.enabled) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+
+    // 1. Deep ominous bearish market-crash horn/gong swell
+    const gong = this.ctx.createOscillator();
+    const gongGain = this.ctx.createGain();
+    gong.type = 'sawtooth';
+    gong.frequency.setValueAtTime(98, t);
+    gong.frequency.exponentialRampToValueAtTime(34, t + 1.15);
+
+    const gongFilter = this.ctx.createBiquadFilter();
+    gongFilter.type = 'lowpass';
+    gongFilter.frequency.setValueAtTime(420, t);
+    gongFilter.frequency.exponentialRampToValueAtTime(90, t + 1.15);
+
+    gongGain.gain.setValueAtTime(0.32, t);
+    gongGain.gain.exponentialRampToValueAtTime(0.001, t + 1.2);
+
+    gong.connect(gongFilter);
+    gongFilter.connect(gongGain);
+    gongGain.connect(this.ctx.destination);
+    gong.start(t);
+    gong.stop(t + 1.25);
+
+    // 2. Staggered heavy candlestick floor slams (thud + metallic clink)
+    const impactTimes = [0.22, 0.36, 0.49, 0.64, 0.82];
+    impactTimes.forEach((offset, idx) => {
+      if (!this.ctx) return;
+      const it = t + offset;
+      const slam = this.ctx.createOscillator();
+      const slamGain = this.ctx.createGain();
+      slam.type = 'triangle';
+      slam.frequency.setValueAtTime(140 - idx * 12, it);
+      slam.frequency.exponentialRampToValueAtTime(28, it + 0.22);
+      slamGain.gain.setValueAtTime(0.28 - idx * 0.03, it);
+      slamGain.gain.exponentialRampToValueAtTime(0.001, it + 0.24);
+      slam.connect(slamGain);
+      slamGain.connect(this.ctx.destination);
+      slam.start(it);
+      slam.stop(it + 0.25);
+
+      const clink = this.ctx.createOscillator();
+      const clinkGain = this.ctx.createGain();
+      clink.type = 'square';
+      clink.frequency.setValueAtTime(520 + idx * 70, it);
+      clink.frequency.exponentialRampToValueAtTime(190, it + 0.09);
+      clinkGain.gain.setValueAtTime(0.06, it);
+      clinkGain.gain.exponentialRampToValueAtTime(0.001, it + 0.1);
+      clink.connect(clinkGain);
+      clinkGain.connect(this.ctx.destination);
+      clink.start(it);
+      clink.stop(it + 0.11);
+    });
+  }
+
+  // Distinct Corner Wall Crash: massive sandstone monolith slam + bronze resonance + crystalline rune shatter
+  public playCornerWallCrash() {
+    if (!this.enabled) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+
+    // 1. Massive Sub-Bass Sandstone Wall Slam
+    const sub = this.ctx.createOscillator();
+    const subGain = this.ctx.createGain();
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(135, t);
+    sub.frequency.exponentialRampToValueAtTime(24, t + 0.55);
+    subGain.gain.setValueAtTime(0.65, t);
+    subGain.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+    sub.connect(subGain);
+    subGain.connect(this.ctx.destination);
+    sub.start(t);
+    sub.stop(t + 0.62);
+
+    // 2. Temple Bronze & Sandstone Wall Resonance Boom
+    const bronze = this.ctx.createOscillator();
+    const bronzeGain = this.ctx.createGain();
+    bronze.type = 'triangle';
+    bronze.frequency.setValueAtTime(210, t);
+    bronze.frequency.exponentialRampToValueAtTime(52, t + 0.72);
+    bronzeGain.gain.setValueAtTime(0.32, t);
+    bronzeGain.gain.exponentialRampToValueAtTime(0.001, t + 0.75);
+    bronze.connect(bronzeGain);
+    bronzeGain.connect(this.ctx.destination);
+    bronze.start(t);
+    bronze.stop(t + 0.78);
+
+    // 3. Crystalline Turquoise Glyph & Stone Shatter Burst
+    const bufferSize = Math.floor(this.ctx.sampleRate * 0.65);
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      const env = Math.pow(1 - i / bufferSize, 1.45);
+      data[i] = (Math.random() * 2 - 1) * env;
+    }
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+    const bandpass = this.ctx.createBiquadFilter();
+    bandpass.type = 'bandpass';
+    bandpass.frequency.setValueAtTime(2400, t);
+    bandpass.frequency.exponentialRampToValueAtTime(320, t + 0.6);
+    bandpass.Q.value = 1.6;
+    const noiseGain = this.ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.45, t);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.65);
+    noise.connect(bandpass);
+    bandpass.connect(noiseGain);
+    noiseGain.connect(this.ctx.destination);
+    noise.start(t);
+    noise.stop(t + 0.66);
+
+    // 4. Staggered Turquoise Crystal Rune Shards Chiming on Floor
+    [1380, 1740, 2120, 1520].forEach((freq, idx) => {
+      if (!this.ctx) return;
+      const st = t + 0.08 + idx * 0.065;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, st);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.65, st + 0.16);
+      gain.gain.setValueAtTime(0.11, st);
+      gain.gain.exponentialRampToValueAtTime(0.001, st + 0.17);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(st);
+      osc.stop(st + 0.18);
+    });
+  }
+
   // Falling down abyss scream/whoosh
   public playFall() {
     if (!this.enabled) return;

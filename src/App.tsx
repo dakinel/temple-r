@@ -6,6 +6,7 @@ import { GameOverModal } from './components/GameOverModal';
 import { AdventurerSelector } from './components/AdventurerSelector';
 import { AdventurerProfile, ADVENTURER_ROSTER } from './game/adventurers';
 import { sound } from './game/audio';
+import { CornerStatus, CrashType } from './game/characterController';
 import { MARKET_QUERIES, MarketQuery, fetchLiveMarketQueries } from './game/queries';
 
 const STARTING_CAPITAL = 0;
@@ -26,13 +27,19 @@ export default function App() {
 
   // Game UI State
   const [gamePhase, setGamePhase] = useState<'start' | 'playing' | 'gameover'>('start');
+  const [isCrashCinematic, setIsCrashCinematic] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const crashTimeoutRef = useRef<number | null>(null);
+  const feedbackTimeoutRef = useRef<number | null>(null);
+  const powerupTimeoutRef = useRef<number | null>(null);
   const [stats, setStats] = useState<{
     distance: number;
     coins: number;
     score: number;
     reason?: string;
-  }>({ distance: 0, coins: 0, score: 0 });
+    crashType?: CrashType;
+  }>({ distance: 0, coins: 0, score: 0, crashType: 'candlestick' });
+  const [cornerStatus, setCornerStatus] = useState<CornerStatus | null>(null);
   const [highScore, setHighScore] = useState<number>(() => {
     const saved = localStorage.getItem('templerun_3d_highscore_v3');
     return saved ? parseInt(saved, 10) : 50;
@@ -40,6 +47,7 @@ export default function App() {
   const [isNewHigh, setIsNewHigh] = useState(false);
   const [powerupMessage, setPowerupMessage] = useState<string | null>(null);
   const [cameraMode, setCameraMode] = useState<'rear' | 'front' | 'side'>('rear');
+  const [speedMultiplier, setSpeedMultiplier] = useState(1.0);
 
   // Stock Market Trading Screen & Decision State
   const [marketQueries, setMarketQueries] = useState<MarketQuery[]>(MARKET_QUERIES);
@@ -69,6 +77,11 @@ export default function App() {
     query: MarketQuery;
     chosenSide: 'left' | 'right';
   }) => {
+    if (feedbackTimeoutRef.current !== null) {
+      window.clearTimeout(feedbackTimeoutRef.current);
+      feedbackTimeoutRef.current = null;
+    }
+
     if (result.survived) {
       setStreak((s) => s + 1);
       setPortfolioValue((prev) => prev + result.profit);
@@ -78,9 +91,10 @@ export default function App() {
         profit: result.profit,
         isYes: result.chosenSide === 'left',
       });
-      setTimeout(() => {
+      feedbackTimeoutRef.current = window.setTimeout(() => {
+        feedbackTimeoutRef.current = null;
         setDecisionFeedback(null);
-      }, 3200);
+      }, 1500);
 
       setTradeHistory((prev) => [
         ...prev.slice(-3),
@@ -91,9 +105,15 @@ export default function App() {
         },
       ]);
 
-      // Advance to next stock query
-      setActiveForkQuery(null);
-      setQueryIndex((prev) => (prev + 1) % Math.max(1, marketQueriesRef.current.length));
+      // Sync immediately to the exact next upcoming fork's randomized query
+      const upcoming = engineRef.current?.getNextForkQuery();
+      if (upcoming) {
+        setActiveForkQuery(upcoming.query);
+        setQueryIndex(upcoming.queryIndex);
+      } else {
+        setActiveForkQuery(null);
+        setQueryIndex((prev) => prev + 1);
+      }
     } else {
       setStreak(0);
       setPortfolioValue((prev) => Math.max(0, prev + result.profit));
@@ -118,19 +138,49 @@ export default function App() {
         if (engineRef.current) {
           const p = engineRef.current.player;
           setCurrentLaneX(p.currentLaneX);
+          const nextCorner = p.getUpcomingCornerStatus();
+          setCornerStatus((prev) => {
+            if (!nextCorner && !prev) return prev;
+            if (
+              nextCorner &&
+              prev &&
+              nextCorner.turnDir === prev.turnDir &&
+              nextCorner.inTurnWindow === prev.inTurnWindow &&
+              Math.floor(nextCorner.distToPivot) === Math.floor(prev.distToPivot)
+            ) {
+              return prev;
+            }
+            return nextCorner;
+          });
         }
       },
       onForkApproaching: (fork) => {
+        if (feedbackTimeoutRef.current !== null) {
+          window.clearTimeout(feedbackTimeoutRef.current);
+          feedbackTimeoutRef.current = null;
+        }
+        setDecisionFeedback(null);
         setQueryIndex(fork.queryIndex);
         setActiveForkQuery(fork.query);
       },
       onForkDecision: (result) => {
         handleForkDecisionRef.current(result);
       },
+      onCornerCleared: (turnDir) => {
+        if (powerupTimeoutRef.current !== null) {
+          window.clearTimeout(powerupTimeoutRef.current);
+        }
+        setPowerupMessage(`PRECISION ${turnDir.toUpperCase()} TURN! +$3`);
+        powerupTimeoutRef.current = window.setTimeout(() => {
+          powerupTimeoutRef.current = null;
+          setPowerupMessage(null);
+        }, 1600);
+      },
       onGameOver: (finalStats) => {
-        setGamePhase('gameover');
         setIsPaused(false);
+        setCornerStatus(null);
         setStats(finalStats);
+        setIsCrashCinematic(true);
 
         setHighScore((prevHigh) => {
           if (finalStats.score > prevHigh) {
@@ -141,15 +191,35 @@ export default function App() {
           setIsNewHigh(false);
           return prevHigh;
         });
+
+        if (crashTimeoutRef.current) {
+          window.clearTimeout(crashTimeoutRef.current);
+        }
+        crashTimeoutRef.current = window.setTimeout(() => {
+          crashTimeoutRef.current = null;
+          setIsCrashCinematic(false);
+          setGamePhase('gameover');
+        }, 1450);
       },
       onPowerupMessage: (msg) => {
+        if (powerupTimeoutRef.current !== null) {
+          window.clearTimeout(powerupTimeoutRef.current);
+        }
         setPowerupMessage(msg);
-        setTimeout(() => setPowerupMessage(null), 2800);
+        powerupTimeoutRef.current = window.setTimeout(() => {
+          powerupTimeoutRef.current = null;
+          setPowerupMessage(null);
+        }, 2800);
       },
     });
 
     engine.setAdventurer(adventurerRef.current);
     engine.setMarketQueries(marketQueriesRef.current);
+    const initialFork = engine.getNextForkQuery();
+    if (initialFork) {
+      setActiveForkQuery(initialFork.query);
+      setQueryIndex(initialFork.queryIndex);
+    }
     engineRef.current = engine;
 
     let cancelled = false;
@@ -157,10 +227,24 @@ export default function App() {
       if (cancelled || queries.length === 0) return;
       setMarketQueries(queries);
       engine.setMarketQueries(queries);
+      const syncedFork = engine.getNextForkQuery();
+      if (syncedFork) {
+        setActiveForkQuery(syncedFork.query);
+        setQueryIndex(syncedFork.queryIndex);
+      }
     });
 
     return () => {
       cancelled = true;
+      if (crashTimeoutRef.current) {
+        window.clearTimeout(crashTimeoutRef.current);
+      }
+      if (feedbackTimeoutRef.current !== null) {
+        window.clearTimeout(feedbackTimeoutRef.current);
+      }
+      if (powerupTimeoutRef.current !== null) {
+        window.clearTimeout(powerupTimeoutRef.current);
+      }
       engine.dispose();
       engineRef.current = null;
     };
@@ -182,37 +266,34 @@ export default function App() {
     setCameraMode(nextMode);
   }, []);
 
-  // 1. SCROLL WHEEL CONTROLS (Scroll Left / Right to Steer & Choose YES/NO)
+  // 1. SCROLL WHEEL CONTROLS (Vertical Scroll = Speed Up/Down, Horizontal Scroll = Steer Left/Right)
   useEffect(() => {
-    let wheelAccumulator = 0;
     let lastWheelTime = 0;
 
     const handleWheel = (e: WheelEvent) => {
-      if (gamePhase !== 'playing' || !engineRef.current) return;
+      if (gamePhase !== 'playing' || isPaused || isCrashCinematic || !engineRef.current) return;
       e.preventDefault();
 
       const player = engineRef.current.player;
       const now = performance.now();
 
-      const dx = e.deltaX;
-      const dy = e.deltaY;
+      // Normalize wheel delta across pixel/line/page modes
+      const scaleFactor = e.deltaMode === 1 ? 32 : e.deltaMode === 2 ? 240 : 1;
+      const dx = e.deltaX * scaleFactor;
+      const dy = e.deltaY * scaleFactor;
 
-      if (Math.abs(dx) > 3) {
-        player.steer(dx * 0.016);
-        if (Math.abs(dx) > 22 && now - lastWheelTime > 160) {
-          if (dx > 0) player.moveRight();
+      if (Math.abs(dy) >= Math.abs(dx) && Math.abs(dy) > 1) {
+        // Scroll Up (dy < 0) -> Increase Speed; Scroll Down (dy > 0) -> Decrease Speed
+        const speedDelta = Math.max(-0.22, Math.min(0.22, -dy * 0.0012));
+        player.adjustSpeed(speedDelta);
+        setSpeedMultiplier(player.speedMultiplier);
+      } else if (Math.abs(dx) > 3) {
+        // Reversed horizontal scroll so scrolling right (deltaX < 0) steers right and vice versa
+        const reversedDx = -dx;
+        player.steer(reversedDx * 0.016);
+        if (Math.abs(reversedDx) > 22 && now - lastWheelTime > 160) {
+          if (reversedDx > 0) player.moveRight();
           else player.moveLeft();
-          lastWheelTime = now;
-        }
-      } else if (Math.abs(dy) > 12) {
-        wheelAccumulator += dy;
-        if (Math.abs(wheelAccumulator) > 35 && now - lastWheelTime > 160) {
-          if (wheelAccumulator > 0) {
-            player.moveRight();
-          } else {
-            player.moveLeft();
-          }
-          wheelAccumulator = 0;
           lastWheelTime = now;
         }
       }
@@ -220,7 +301,7 @@ export default function App() {
 
     window.addEventListener('wheel', handleWheel, { passive: false });
     return () => window.removeEventListener('wheel', handleWheel);
-  }, [gamePhase]);
+  }, [gamePhase, isPaused, isCrashCinematic]);
 
   // 2. TAP / CLICK TO JUMP
   const handlePointerDown = (e: React.PointerEvent) => {
@@ -344,49 +425,100 @@ export default function App() {
 
   // Start / Restart Game
   const startGame = () => {
+    if (crashTimeoutRef.current) {
+      window.clearTimeout(crashTimeoutRef.current);
+      crashTimeoutRef.current = null;
+    }
+    if (feedbackTimeoutRef.current !== null) {
+      window.clearTimeout(feedbackTimeoutRef.current);
+      feedbackTimeoutRef.current = null;
+    }
+    if (powerupTimeoutRef.current !== null) {
+      window.clearTimeout(powerupTimeoutRef.current);
+      powerupTimeoutRef.current = null;
+    }
+    setIsCrashCinematic(false);
+    let nextFork: { query: MarketQuery; queryIndex: number } | null = null;
     if (engineRef.current) {
       engineRef.current.restart();
       engineRef.current.setAdventurer(adventurer);
       engineRef.current.start();
+      nextFork = engineRef.current.getNextForkQuery();
       sound.playTradingBell();
     }
-    setStats({ distance: 0, coins: 0, score: 0 });
+    setStats({ distance: 0, coins: 0, score: 0, crashType: 'candlestick' });
+    setSpeedMultiplier(1.0);
+    setCornerStatus(null);
+    setPowerupMessage(null);
     setPortfolioValue(STARTING_CAPITAL);
     setStreak(0);
     setTradeHistory([]);
     setDecisionFeedback(null);
-    setActiveForkQuery(null);
-    setQueryIndex(0);
+    setActiveForkQuery(nextFork?.query ?? null);
+    setQueryIndex(nextFork?.queryIndex ?? 0);
     setIsNewHigh(false);
     setIsPaused(false);
     setGamePhase('playing');
   };
 
   const togglePause = useCallback(() => {
-    if (!engineRef.current || gamePhase !== 'playing') return;
+    if (!engineRef.current || gamePhase !== 'playing' || isCrashCinematic) return;
     engineRef.current.pause();
     setIsPaused(engineRef.current.isPaused);
-  }, [gamePhase]);
+  }, [gamePhase, isCrashCinematic]);
 
   const restartGame = useCallback(() => {
+    if (crashTimeoutRef.current) {
+      window.clearTimeout(crashTimeoutRef.current);
+      crashTimeoutRef.current = null;
+    }
+    if (feedbackTimeoutRef.current !== null) {
+      window.clearTimeout(feedbackTimeoutRef.current);
+      feedbackTimeoutRef.current = null;
+    }
+    if (powerupTimeoutRef.current !== null) {
+      window.clearTimeout(powerupTimeoutRef.current);
+      powerupTimeoutRef.current = null;
+    }
+    setIsCrashCinematic(false);
+    let nextFork: { query: MarketQuery; queryIndex: number } | null = null;
     if (engineRef.current) {
       engineRef.current.restart();
       engineRef.current.setAdventurer(adventurer);
+      nextFork = engineRef.current.getNextForkQuery();
       sound.playTradingBell();
     }
-    setStats({ distance: 0, coins: 0, score: 0 });
+    setStats({ distance: 0, coins: 0, score: 0, crashType: 'candlestick' });
+    setSpeedMultiplier(1.0);
+    setCornerStatus(null);
+    setPowerupMessage(null);
     setPortfolioValue(STARTING_CAPITAL);
     setStreak(0);
     setTradeHistory([]);
     setDecisionFeedback(null);
-    setActiveForkQuery(null);
-    setQueryIndex(0);
+    setActiveForkQuery(nextFork?.query ?? null);
+    setQueryIndex(nextFork?.queryIndex ?? 0);
     setIsNewHigh(false);
     setIsPaused(false);
     setGamePhase('playing');
   }, [adventurer]);
 
   const goToMenu = () => {
+    if (crashTimeoutRef.current) {
+      window.clearTimeout(crashTimeoutRef.current);
+      crashTimeoutRef.current = null;
+    }
+    if (feedbackTimeoutRef.current !== null) {
+      window.clearTimeout(feedbackTimeoutRef.current);
+      feedbackTimeoutRef.current = null;
+    }
+    if (powerupTimeoutRef.current !== null) {
+      window.clearTimeout(powerupTimeoutRef.current);
+      powerupTimeoutRef.current = null;
+    }
+    setIsCrashCinematic(false);
+    setDecisionFeedback(null);
+    setPowerupMessage(null);
     setGamePhase('start');
     setIsPaused(false);
     if (engineRef.current) {
@@ -410,11 +542,12 @@ export default function App() {
       <div ref={canvasMountRef} className="absolute inset-0 z-0 w-full h-full pointer-events-none" />
 
       {/* In-Game HUD & In-Front Trading Screen */}
-      {gamePhase === 'playing' && (
+      {gamePhase === 'playing' && !isCrashCinematic && (
         <GameHUD
           score={stats.score}
           coins={stats.coins}
           distance={stats.distance}
+          speedMultiplier={speedMultiplier}
           isPaused={isPaused}
           powerupMessage={powerupMessage}
           hasShield={engineRef.current?.player.powerups.shieldActive ?? false}
@@ -429,6 +562,7 @@ export default function App() {
           currentLaneX={currentLaneX}
           decisionFeedback={decisionFeedback}
           tradeHistory={tradeHistory}
+          cornerStatus={cornerStatus}
           onChooseYes={handleChooseYesButton}
           onChooseNo={handleChooseNoButton}
           // Handlers
@@ -443,6 +577,38 @@ export default function App() {
           onJump={() => engineRef.current?.player.jump()}
           onSlide={() => engineRef.current?.player.slide()}
         />
+      )}
+
+      {/* Cinematic Crash Vignette Overlay (Distinct Corner-Wall Amber/Cyan vs Market Candlestick Crimson) */}
+      {isCrashCinematic && (
+        <div
+          aria-hidden="true"
+          className={
+            stats.crashType === 'corner_wall'
+              ? 'pointer-events-none absolute inset-0 z-30 border-8 border-cyan-400/80 shadow-[inset_0_0_130px_rgba(245,158,11,0.6)] flex items-end justify-center pb-10'
+              : 'pointer-events-none absolute inset-0 z-30 border-8 border-rose-600/75 shadow-[inset_0_0_120px_rgba(220,38,38,0.65)] flex items-end justify-center pb-10'
+          }
+        >
+          <div
+            className={
+              stats.crashType === 'corner_wall'
+                ? 'bg-slate-950/90 border-2 border-amber-400/85 px-5 py-2 rounded-xl shadow-2xl'
+                : 'bg-slate-950/88 border border-rose-500/80 px-5 py-2 rounded-xl shadow-2xl'
+            }
+          >
+            <span
+              className={
+                stats.crashType === 'corner_wall'
+                  ? 'text-cyan-300 font-mono font-black text-sm sm:text-base tracking-[0.22em] uppercase'
+                  : 'text-rose-400 font-mono font-black text-sm sm:text-base tracking-[0.25em] uppercase'
+              }
+            >
+              {stats.crashType === 'corner_wall'
+                ? '◆ TEMPLE WALL IMPACT · MISSED CORNER TURN ◆'
+                : '▼ MARKET CRASH · LIQUIDATED ▼'}
+            </span>
+          </div>
+        </div>
       )}
 
       {/* Start Game Screen */}
@@ -464,6 +630,7 @@ export default function App() {
             coins: stats.coins,
             score: stats.score,
             reason: stats.reason,
+            crashType: stats.crashType,
           }}
           highScore={highScore}
           isNewHigh={isNewHigh}

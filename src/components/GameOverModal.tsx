@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react';
-import { RotateCcw, Trophy, Home, TrendingDown } from 'lucide-react';
+import { Home } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { AdventurerProfile, getDiceBearAvatarUrl } from '../game/adventurers';
+import { CrashType } from '../game/characterController';
 
 interface GameOverModalProps {
   stats: {
@@ -9,6 +10,7 @@ interface GameOverModalProps {
     coins: number;
     score: number;
     reason?: string;
+    crashType?: CrashType;
   };
   highScore: number;
   isNewHigh: boolean;
@@ -16,6 +18,102 @@ interface GameOverModalProps {
   onPlayAgain: () => void;
   onHome: () => void;
 }
+
+const CrashChartIcon: React.FC = () => (
+  <svg
+    viewBox="0 0 64 64"
+    className="w-14 h-14 mx-auto"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    aria-hidden="true"
+  >
+    {/* Coral bearish bars */}
+    <rect x="16" y="20" width="7" height="17" rx="1.5" fill="#F4A29E" stroke="#464558" strokeWidth="2.4" />
+    <rect x="28" y="24" width="7" height="13" rx="1.5" fill="#F8C89C" stroke="#464558" strokeWidth="2.4" />
+    <rect x="40" y="29" width="7" height="8" rx="1.5" fill="#F4A29E" stroke="#464558" strokeWidth="2.4" />
+    {/* Baseline */}
+    <line x1="12" y1="37" x2="52" y2="37" stroke="#464558" strokeWidth="2.6" strokeLinecap="round" />
+    {/* Downward trend arrow */}
+    <path
+      d="M14 14L27 23L35 19L49 30"
+      stroke="#464558"
+      strokeWidth="6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M14 14L27 23L35 19L49 30"
+      stroke="#F4A29E"
+      strokeWidth="2.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M42 31L50 31L49 23"
+      stroke="#464558"
+      strokeWidth="2.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      fill="#F4A29E"
+    />
+    {/* Playful running legs */}
+    <path
+      d="M27 37L23 47L17 47"
+      stroke="#464558"
+      strokeWidth="2.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M36 37L41 47L47 47"
+      stroke="#464558"
+      strokeWidth="2.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const WallCrashIcon: React.FC = () => (
+  <svg
+    viewBox="0 0 64 64"
+    className="w-14 h-14 mx-auto"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    aria-hidden="true"
+  >
+    {/* Egyptian sandstone wall blocks with turquoise crack */}
+    <rect x="14" y="14" width="16" height="11" rx="2" fill="#F7C98E" stroke="#464558" strokeWidth="2.4" />
+    <rect x="34" y="14" width="16" height="11" rx="2" fill="#9DE3E6" stroke="#464558" strokeWidth="2.4" />
+    <rect x="14" y="27" width="13" height="10" rx="2" fill="#F4A29E" stroke="#464558" strokeWidth="2.4" />
+    <rect x="31" y="27" width="19" height="10" rx="2" fill="#F7C98E" stroke="#464558" strokeWidth="2.4" />
+    {/* Impact crack */}
+    <path
+      d="M32 10L29 21L35 26L30 37"
+      stroke="#464558"
+      strokeWidth="2.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    {/* Baseline */}
+    <line x1="12" y1="37" x2="52" y2="37" stroke="#464558" strokeWidth="2.6" strokeLinecap="round" />
+    {/* Running legs */}
+    <path
+      d="M27 37L22 47L16 47"
+      stroke="#464558"
+      strokeWidth="2.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M37 37L42 47L48 47"
+      stroke="#464558"
+      strokeWidth="2.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
 
 export const GameOverModal: React.FC<GameOverModalProps> = ({
   stats,
@@ -28,113 +126,86 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
   useEffect(() => {
     if (isNewHigh) {
       confetti({
-        particleCount: 90,
-        spread: 80,
+        particleCount: 80,
+        spread: 75,
         origin: { y: 0.6 },
-        colors: ['#10b981', '#34d399', '#f59e0b', '#38bdf8'],
+        colors: ['#35d69e', '#f7c98e', '#9de3e6', '#f4a29e'],
       });
     }
   }, [isNewHigh]);
 
   const avatarUrl = getDiceBearAvatarUrl(adventurer.seed);
+  const isCornerCrash = stats.crashType === 'corner_wall';
+
+  const summaryLine = stats.reason
+    ? stats.reason.split('.')[0]
+    : `${stats.distance}m · ${stats.coins} coins`;
 
   return (
-    <div className="absolute inset-0 z-40 bg-slate-950/65 flex items-center justify-center p-4 select-none">
-      <div className="max-w-md w-full bg-slate-900 border-2 border-rose-600/70 rounded-3xl p-6 sm:p-7 shadow-2xl text-center relative overflow-hidden">
-        {/* Header with Trader Avatar and Bear Icon */}
-        <div className="flex items-center justify-center gap-3 mb-3">
-          <div className="w-16 h-16 rounded-2xl bg-slate-950 border-2 border-rose-500/70 overflow-hidden shadow-lg relative">
+    <div className="absolute inset-0 z-40 bg-slate-950/55 backdrop-blur-xs flex items-center justify-center p-4 select-none animate-[crashModalIn_0.22s_cubic-bezier(0.16,1,0.3,1)_both]">
+      <div className="max-w-sm w-full bg-[#fcf9ee] rounded-[34px] px-7 py-8 sm:px-8 sm:py-9 shadow-[0_24px_60px_rgba(15,23,42,0.45)] text-center">
+        {/* Minimal Pastel Line Icon */}
+        <div className="mb-2">
+          {isCornerCrash ? <WallCrashIcon /> : <CrashChartIcon />}
+        </div>
+
+        {/* Clean Title */}
+        <h2 className="text-2xl sm:text-[28px] font-black text-[#3e3c4e] tracking-[0.06em] uppercase mb-4">
+          {isCornerCrash ? 'WALL IMPACT' : 'LIQUIDATED'}
+        </h2>
+
+        {/* Soft Score Pill */}
+        <div className="mb-5">
+          <span
+            className={`inline-block px-4 py-1.5 rounded-full text-xs font-extrabold tracking-wider uppercase tabular-nums ${
+              isNewHigh
+                ? 'bg-[#c9f5e4] text-[#0c5940]'
+                : 'bg-[#fae0c3] text-[#2c2a35]'
+            }`}
+          >
+            {isNewHigh
+              ? `NEW BEST: $${stats.score.toLocaleString()}`
+              : `SCORE: $${stats.score.toLocaleString()} · BEST: $${highScore.toLocaleString()}`}
+          </span>
+        </div>
+
+        {/* Crisp White Trader & Result Card */}
+        <div className="bg-white rounded-[24px] p-4 mb-6 shadow-[0_8px_24px_rgba(62,54,36,0.06)] flex items-center gap-4 text-left">
+          <div className="w-16 h-16 rounded-2xl bg-[#d6d9fa] border-2 border-[#efe7d8] overflow-hidden shrink-0">
             <img
               src={avatarUrl}
               alt={adventurer.name}
+              referrerPolicy="no-referrer"
               className="w-full h-full object-cover"
             />
-            <div className="absolute -bottom-1 -right-1 bg-rose-600 text-white p-1 rounded-full shadow">
-              <TrendingDown className="w-3.5 h-3.5" />
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <div className="font-black text-[#17161d] text-lg leading-tight truncate tabular-nums">
+              {stats.distance}m · ${stats.score.toLocaleString()}
             </div>
+            <div className="text-xs font-medium text-[#6e6b7c] mt-0.5 line-clamp-1">
+              {summaryLine}
+            </div>
+            <button
+              type="button"
+              onClick={onHome}
+              className="mt-2 inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-[#f6efe0] hover:bg-[#ede3ce] text-[#2a2833] font-bold text-[11px] tracking-wider uppercase transition cursor-pointer"
+            >
+              <Home className="w-3.5 h-3.5" />
+              <span>MENU</span>
+            </button>
           </div>
         </div>
 
-        <h2 className="text-3xl font-black text-rose-400 tracking-wider uppercase mb-0.5 drop-shadow">
-          LIQUIDATED!
-        </h2>
-
-        {/* Fatal Decision Reason Banner */}
-        {stats.reason ? (
-          <div className="my-3 p-3 rounded-2xl bg-rose-950/90 border-2 border-rose-500 text-rose-100 text-xs text-left shadow-xl">
-            <div className="font-mono font-black text-[10px] text-rose-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
-              <span>⚠ LETHAL TUNNEL SELECTION:</span>
-            </div>
-            <div className="leading-relaxed font-semibold">
-              {stats.reason}
-            </div>
-          </div>
-        ) : (
-          <p className="text-xs text-slate-400 tracking-wider uppercase mb-1 font-medium">
-            {adventurer.name} was overtaken by the Bear Market
-          </p>
-        )}
-
-        <p className="text-[11px] italic text-amber-300/80 mb-3">
-          &ldquo;{adventurer.quote}&rdquo;
-        </p>
-
-        {/* New Record Banner */}
-        {isNewHigh && (
-          <div className="mb-4 py-2 px-4 bg-emerald-500/20 border border-emerald-400/80 rounded-xl text-emerald-300 text-xs font-black tracking-widest uppercase flex items-center justify-center gap-2 shadow animate-pulse">
-            <Trophy className="w-4 h-4 text-amber-400" />
-            <span>NEW ALL-TIME RECORD PROFIT!</span>
-          </div>
-        )}
-
-        {/* Stats Grid */}
-        <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 mb-5 space-y-2.5">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-slate-400">Total Score:</span>
-            <span className="text-xl font-black text-emerald-400 font-mono tabular-nums">
-              ${stats.score.toLocaleString()}
-            </span>
-          </div>
-          <div className="h-px bg-slate-800" />
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-slate-400">Trading Distance:</span>
-            <span className="text-base font-bold text-cyan-400 font-mono tabular-nums">
-              {stats.distance} meters
-            </span>
-          </div>
-          <div className="h-px bg-slate-800" />
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-slate-400">Coins Collected:</span>
-            <span className="text-base font-bold text-amber-300 font-mono tabular-nums">
-              {stats.coins}
-            </span>
-          </div>
-          <div className="h-px bg-slate-800" />
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-slate-400">Best Score:</span>
-            <span className="text-xs font-semibold text-slate-300 font-mono tabular-nums">
-              ${highScore.toLocaleString()}
-            </span>
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="flex flex-col sm:flex-row gap-2.5">
-          <button
-            onClick={onPlayAgain}
-            className="flex-1 py-3 px-5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black tracking-wider rounded-xl transition duration-150 transform hover:scale-[1.02] active:scale-[0.98] shadow-lg flex items-center justify-center gap-2 uppercase cursor-pointer"
-          >
-            <RotateCcw className="w-4 h-4" />
-            <span>TRADE AGAIN</span>
-          </button>
-          <button
-            onClick={onHome}
-            className="py-3 px-5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold tracking-wider rounded-xl transition flex items-center justify-center gap-2 uppercase cursor-pointer"
-          >
-            <Home className="w-4 h-4" />
-            <span>MENU</span>
-          </button>
-        </div>
+        {/* Primary Mint Pill CTA */}
+        <button
+          type="button"
+          onClick={onPlayAgain}
+          className="w-full py-4 px-6 bg-[#35d69e] hover:bg-[#2cc48e] active:scale-[0.98] text-white font-black text-xl tracking-wider rounded-full transition shadow-[0_10px_24px_rgba(53,214,158,0.32)] uppercase cursor-pointer"
+        >
+          PLAY AGAIN
+        </button>
       </div>
     </div>
   );

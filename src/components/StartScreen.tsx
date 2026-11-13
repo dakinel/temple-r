@@ -1,7 +1,6 @@
 import React from 'react';
-import { Play, Trophy, Users, TrendingUp, MousePointer, ArrowLeftRight } from 'lucide-react';
+import { Smile } from 'lucide-react';
 import { AdventurerProfile, getDiceBearAvatarUrl } from '../game/adventurers';
-
 import { MarketQuery } from '../game/queries';
 
 interface StartScreenProps {
@@ -12,136 +11,132 @@ interface StartScreenProps {
   onStartGame: () => void;
 }
 
+const BullRunnerIcon: React.FC = () => (
+  <svg
+    viewBox="0 0 64 64"
+    className="w-14 h-14 mx-auto"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    aria-hidden="true"
+  >
+    {/* Pastel market bars */}
+    <rect x="16" y="25" width="7" height="12" rx="1.5" fill="#F4A29E" stroke="#464558" strokeWidth="2.4" />
+    <rect x="28" y="21" width="7" height="16" rx="1.5" fill="#F8C89C" stroke="#464558" strokeWidth="2.4" />
+    <rect x="40" y="18" width="7" height="19" rx="1.5" fill="#9DE3E6" stroke="#464558" strokeWidth="2.4" />
+    {/* Baseline */}
+    <line x1="12" y1="37" x2="52" y2="37" stroke="#464558" strokeWidth="2.6" strokeLinecap="round" />
+    {/* Upward bull trend arrow */}
+    <path
+      d="M14 31L26 21L34 25L48 12"
+      stroke="#464558"
+      strokeWidth="6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M14 31L26 21L34 25L48 12"
+      stroke="#9DE3E6"
+      strokeWidth="2.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M41 11L50 10L49 19"
+      stroke="#464558"
+      strokeWidth="2.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      fill="#9DE3E6"
+    />
+    {/* Playful running legs */}
+    <path
+      d="M27 37L23 47L17 47"
+      stroke="#464558"
+      strokeWidth="2.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M36 37L41 47L47 47"
+      stroke="#464558"
+      strokeWidth="2.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
 export const StartScreen: React.FC<StartScreenProps> = ({
   highScore,
   adventurer,
-  marketQueries,
   onOpenAdventurerSelect,
   onStartGame,
 }) => {
   const avatarUrl = getDiceBearAvatarUrl(adventurer.seed);
-  const topTickers = marketQueries.slice(0, 3);
 
   return (
-    <div className="absolute inset-0 z-30 bg-slate-950/85 backdrop-blur-xs flex items-center justify-center p-4 select-none">
-      <div className="max-w-lg w-full bg-slate-900 border-2 border-emerald-500/60 rounded-3xl p-6 sm:p-7 shadow-2xl text-center relative overflow-hidden">
-        {/* Live ticker tape header */}
-        <div className="absolute top-2.5 left-4 right-4 flex items-center justify-between text-[10px] font-mono font-bold tracking-wider">
-          {topTickers.map((q) => {
-            const isUp = !q.change.startsWith('-');
-            return (
-              <span
-                key={q.id}
-                className={isUp ? 'text-emerald-400/70' : 'text-rose-400/70'}
-              >
-                {q.ticker} {isUp ? '▲' : '▼'} {q.change}
-              </span>
-            );
-          })}
-          <span className="text-emerald-400/50">
-            {topTickers[0]?.marketSource === 'live' ? 'LIVE DATA' : 'MARKET DATA'}
-          </span>
+    <div className="absolute inset-0 z-30 bg-slate-950/55 backdrop-blur-xs flex items-center justify-center p-4 select-none animate-[crashModalIn_0.22s_cubic-bezier(0.16,1,0.3,1)_both]">
+      <div className="max-w-sm w-full bg-[#fcf9ee] rounded-[34px] px-7 py-8 sm:px-8 sm:py-9 shadow-[0_24px_60px_rgba(15,23,42,0.45)] text-center">
+        {/* Minimal Pastel Runner Chart Icon */}
+        <div className="mb-2">
+          <BullRunnerIcon />
         </div>
 
-        {/* Bull Market Trophy Badge */}
-        <div className="w-16 h-16 mx-auto mt-4 mb-2.5 rounded-full bg-linear-to-b from-emerald-400 to-teal-700 p-1 shadow-xl flex items-center justify-center border-2 border-emerald-300">
-          <div className="w-full h-full rounded-full bg-slate-950 flex items-center justify-center">
-            <TrendingUp className="w-8 h-8 text-emerald-400 animate-pulse" />
-          </div>
-        </div>
-
-        {/* Title */}
-        <h1 className="text-2xl sm:text-3xl font-black text-white tracking-wider uppercase mb-0.5 drop-shadow">
+        {/* Clean Title */}
+        <h1 className="text-2xl sm:text-[26px] font-black text-[#3e3c4e] tracking-[0.06em] uppercase mb-4 whitespace-nowrap">
           WALL STREET RUNNER
         </h1>
-        <p className="text-xs sm:text-sm font-semibold text-emerald-400 tracking-wide uppercase mb-3">
-          Live Decision Screen · Steer Left for YES · Steer Right for NO
-        </p>
 
-        {/* Best Score Record */}
+        {/* Soft Best Score Label */}
         {highScore > 0 && (
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-950/70 border border-emerald-500/50 text-emerald-300 text-xs font-bold mb-4 shadow">
-            <Trophy className="w-3.5 h-3.5 text-amber-400" />
-            <span>BEST SCORE: ${highScore.toLocaleString()}</span>
+          <div className="mb-5">
+            <span className="inline-block px-4 py-1.5 rounded-full bg-[#fae0c3] text-[#2c2a35] text-xs font-extrabold tracking-wider uppercase tabular-nums">
+              BEST SCORE: ${highScore.toLocaleString()}
+            </span>
           </div>
         )}
 
-        {/* Active Trader Profile Card */}
-        <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-3.5 mb-4 flex items-center justify-between gap-3 text-left">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-14 h-14 rounded-2xl bg-slate-900 border-2 border-emerald-500/60 overflow-hidden shrink-0 shadow-md">
-              <img
-                src={avatarUrl}
-                alt={adventurer.name}
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">
-                  PORTFOLIO TRADER
-                </span>
-                <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-mono">
-                  DiceBear
-                </span>
-              </div>
-              <h3 className="font-black text-white text-base tracking-wide truncate">
-                {adventurer.name}
-              </h3>
-              <p className="text-[11px] text-teal-300 font-semibold truncate">
-                {adventurer.perk}
-              </p>
-            </div>
+        {/* Crisp White Trader Card */}
+        <div className="bg-white rounded-[24px] p-4 mb-6 shadow-[0_8px_24px_rgba(62,54,36,0.06)] flex items-center gap-4 text-left">
+          <div className="w-16 h-16 rounded-2xl bg-[#d6d9fa] border-2 border-[#efe7d8] overflow-hidden shrink-0 flex items-center justify-center">
+            <img
+              src={avatarUrl}
+              alt={adventurer.name}
+              referrerPolicy="no-referrer"
+              className="w-full h-full object-cover"
+            />
           </div>
 
-          <button
-            onClick={onOpenAdventurerSelect}
-            className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white font-bold text-xs uppercase tracking-wider transition shrink-0 flex items-center gap-1.5 cursor-pointer"
-          >
-            <Users className="w-4 h-4 text-emerald-400" />
-            <span>Switch Face</span>
-          </button>
-        </div>
-
-        {/* Simplified Controls Showcase */}
-        <div className="bg-slate-950/80 border border-emerald-500/30 rounded-2xl p-3.5 mb-5 text-left">
-          <div className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-            <MousePointer className="w-3.5 h-3.5" />
-            <span>Interactive Decision Controls</span>
-          </div>
-          <div className="grid grid-cols-2 gap-2 text-xs text-slate-200">
-            <div className="p-2.5 rounded-xl bg-slate-900/90 border border-emerald-500/30 flex items-start gap-2">
-              <ArrowLeftRight className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              <div>
-                <div className="font-bold text-white">Scroll / Move Left or Right</div>
-                <div className="text-[11px] text-emerald-300">
-                  <span className="font-bold text-emerald-400">◄ LEFT = YES</span> · <span className="font-bold text-rose-400">RIGHT = NO ►</span>
-                </div>
-              </div>
+          <div className="min-w-0 flex-1">
+            <div className="font-black text-[#17161d] text-lg leading-tight truncate">
+              {adventurer.name}
             </div>
-            <div className="p-2.5 rounded-xl bg-slate-900/90 border border-cyan-500/30 flex items-start gap-2">
-              <MousePointer className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
-              <div>
-                <div className="font-bold text-white">Tap / Click Anywhere</div>
-                <div className="text-[11px] text-slate-400">Jump over corridor obstacles</div>
-              </div>
-            </div>
-          </div>
-          <div className="mt-2.5 pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
-            <span>Steer into Left or Right tunnel to execute trade</span>
-            <span className="text-emerald-400 font-mono font-bold">A/D, Wheel or Swipe</span>
+            <button
+              type="button"
+              onClick={onOpenAdventurerSelect}
+              className="mt-2 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#f6efe0] hover:bg-[#ede3ce] text-[#2a2833] font-bold text-[11px] tracking-wider uppercase transition cursor-pointer whitespace-nowrap"
+            >
+              <Smile className="w-3.5 h-3.5" />
+              <span>SWITCH</span>
+            </button>
           </div>
         </div>
 
-        {/* Start Button */}
+        {/* Primary Mint Pill CTA */}
         <button
+          type="button"
           onClick={onStartGame}
-          className="w-full py-3.5 px-6 bg-linear-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-lg tracking-widest rounded-2xl transition duration-150 transform hover:scale-[1.02] active:scale-[0.98] shadow-xl flex items-center justify-center gap-3 uppercase cursor-pointer"
+          className="w-full py-4 px-6 bg-[#35d69e] hover:bg-[#2cc48e] active:scale-[0.98] text-white font-black text-xl tracking-wider rounded-full transition shadow-[0_10px_24px_rgba(53,214,158,0.32)] uppercase cursor-pointer"
         >
-          <Play className="w-5 h-5 fill-slate-950" />
-          <span>ENTER TRADING CORRIDOR</span>
+          PLAY
         </button>
+
+        {/* Quiet 1-line Control Hint */}
+        <p className="mt-4 text-[11px] font-medium text-[#6e6b7c]">
+          Scroll or A/D to steer · Vertical scroll for speed · Tap to jump
+        </p>
       </div>
     </div>
   );
 };
+
